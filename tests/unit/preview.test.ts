@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
+import type { Mock } from 'vitest';
 import { renderDocumentPreview } from '../../src/ui/preview';
 import type { Decoration } from '../../src/ui/preview';
 import type { DocLayout, LoadedDocument } from '../../src/core/types';
@@ -451,5 +452,44 @@ describe('renderDocumentPreview — re-render', () => {
     expect(tabs[1].classList.contains('active')).toBe(true);
     expect(container.textContent).toContain('SS');
     expect(container.textContent).not.toContain('AA');
+  });
+});
+
+describe('renderDocumentPreview — fit observer release', () => {
+  it('disconnects the pdf fit observer when the preview switches to a non-pdf render', () => {
+    const disconnects: Mock[] = [];
+    const original = (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
+    class RecordingResizeObserver {
+      readonly disconnect = vi.fn();
+      constructor() {
+        disconnects.push(this.disconnect);
+      }
+      observe(): void {}
+      unobserve(): void {}
+    }
+    (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = RecordingResizeObserver;
+    try {
+      const container = document.createElement('div');
+      const layout: DocLayout = {
+        kind: 'pdf',
+        pages: [{ width: 100, height: 200, items: [{ start: 0, end: 5, x: 10, y: 150, fontSize: 12, width: 40 }] }],
+      };
+
+      renderDocumentPreview(container, makeDoc('Hello', layout), []);
+      expect(disconnects).toHaveLength(1);
+
+      // PDF → 純文字：除了清掉 DOM，舊的 observer 也必須釋放（否則連同整個 PDF DOM 一起殘留）
+      renderDocumentPreview(container, makeDoc('純文字'), []);
+      expect(disconnects[0]).toHaveBeenCalledTimes(1);
+      expect(container.querySelector('.preview-plain')).not.toBeNull();
+
+      // 再度渲染 PDF：建立新的 observer，舊的不會被重複斷線
+      renderDocumentPreview(container, makeDoc('Hello', layout), []);
+      expect(disconnects).toHaveLength(2);
+      expect(disconnects[0]).toHaveBeenCalledTimes(1);
+      expect(disconnects[1]).not.toHaveBeenCalled();
+    } finally {
+      (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = original;
+    }
   });
 });

@@ -252,6 +252,16 @@ function structureLayer(pg: PdfLayoutPage): SVGElement | null {
 /** One live page-fit observer per preview container; a re-render replaces it instead of piling observers onto detached hosts. */
 const fitObservers = new WeakMap<HTMLElement, ResizeObserver>();
 
+/**
+ * Disconnects and forgets the container's fit observer. Called before every re-render: a preview
+ * switched from pdf to plain/docx/xlsx clears the DOM but would otherwise keep the observer — and
+ * through it the whole detached pdf tree — alive until the tab closes.
+ */
+function releaseFitObserver(container: HTMLElement): void {
+  fitObservers.get(container)?.disconnect();
+  fitObservers.delete(container);
+}
+
 function renderPdf(container: HTMLElement, doc: LoadedDocument, decos: Decoration[], pages: PdfLayoutPage[], onToggle?: (p: PdfPicture) => void): void {
   const host = el('div', { class: 'pdf-pages' });
   pages.forEach((pg, i) => {
@@ -305,7 +315,7 @@ function renderPdf(container: HTMLElement, doc: LoadedDocument, decos: Decoratio
     }
   };
   fit();
-  fitObservers.get(container)?.disconnect();
+  releaseFitObserver(container);
   const observer = new ResizeObserver(fit);
   observer.observe(host);
   fitObservers.set(container, observer);
@@ -315,6 +325,9 @@ export function renderDocumentPreview(container: HTMLElement, doc: LoadedDocumen
   // A re-render (after adding or cancelling an item) rebuilds the Excel grid; keep the user's sheet and scroll position.
   const grid = container.querySelector<HTMLElement>('.sheet-scroll');
   const view: GridView | undefined = grid ? { sheet: Number(grid.dataset.sheet), top: grid.scrollTop, left: grid.scrollLeft } : undefined;
+  // Release before clearing: a preview switching away from pdf must drop the fit observer, not
+  // just the DOM — renderPdf installs a fresh one when (and only when) a pdf is rendered again.
+  releaseFitObserver(container);
   clear(container);
   const decos = [...decorations].sort((a, b) => a.start - b.start);
   const layout = opts.plain ? undefined : doc.layout;
