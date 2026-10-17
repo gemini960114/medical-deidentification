@@ -3,7 +3,7 @@
 // 這些案例在整合測試的合成語料中不會出現（規則目前行為正確），必須靠 fixture 鎖住語意。
 import { describe, expect, it } from 'vitest';
 import type { Category, RedactionItem } from '../../src/core/types.ts';
-import { scoreDocument, type CorpusDocument, type CorpusFinding } from '../../scripts/batch-test-generator/score.ts';
+import { scoreDocument, isWhitelisted, type CorpusDocument, type CorpusFinding } from '../../scripts/batch-test-generator/score.ts';
 
 function item(text: string, category: Category, start: number, end: number): RedactionItem {
   return {
@@ -22,8 +22,8 @@ function finding(category: string, value: string, occurrences = 1, expectation: 
   return { category, value, expectation, occurrences };
 }
 
-function doc(findings: CorpusFinding[]): CorpusDocument {
-  return { caseId: 'CASE-0001', file: 'fixture.txt', format: 'txt', findings };
+function doc(findings: CorpusFinding[], format = 'txt'): CorpusDocument {
+  return { caseId: 'CASE-0001', file: `fixture.${format}`, format, findings };
 }
 
 describe('scoreDocument 涵蓋語意：完整涵蓋才算命中', () => {
@@ -132,6 +132,20 @@ describe('scoreDocument 過度遮蔽容許邊界（isAllowedExcess）', () => {
     expect(score.spanDiffs).toHaveLength(1);
     expect(score.spanDiffs[0].excess).toBe('Patient Name: ');
   });
+
+  it('任意英文單字不是標籤：「王小明; Diagnosis: pneumonia」整段遮蔽被拒絕', () => {
+    const text = '王小明; Diagnosis: pneumonia';
+    const score = scoreDocument(text, [item(text, '姓名', 0, text.length)], doc([finding('姓名', '王小明')]));
+    expect(score.overRedactions).toHaveLength(1);
+    expect(score.spanDiffs).toHaveLength(0);
+  });
+
+  it('標籤只能出現在答案值之前：值後的「Dr.」被拒絕', () => {
+    const text = '王小明 Dr. ';
+    const score = scoreDocument(text, [item(text, '姓名', 0, text.length)], doc([finding('姓名', '王小明')]));
+    expect(score.overRedactions).toHaveLength(1);
+    expect(score.overRedactions[0].excess).toBe(' Dr. ');
+  });
 });
 
 describe('scoreDocument 次數與值存在檢查', () => {
@@ -151,6 +165,15 @@ describe('scoreDocument 次數與值存在檢查', () => {
     expect(score.valueNotFound).toHaveLength(1);
     expect(score.countMismatches).toHaveLength(0);
     expect(score.misses).toHaveLength(0);
+  });
+
+  it('漏抓時仍獨立檢查次數：期望 2 實際 1 且未偵測，同時列漏抓與次數不符', () => {
+    const text = '王小明';
+    const score = scoreDocument(text, [], doc([finding('姓名', '王小明', 2)]));
+    expect(score.misses).toHaveLength(1);
+    expect(score.countMismatches).toHaveLength(1);
+    expect(score.countMismatches[0].expectedOccurrences).toBe(2);
+    expect(score.countMismatches[0].actualOccurrences).toBe(1);
   });
 });
 
@@ -174,5 +197,45 @@ describe('scoreDocument 誤判與 audit 分層', () => {
     expect(score.misses).toHaveLength(0);
     expect(score.valueNotFound).toHaveLength(0);
     expect(score.countMismatches).toHaveLength(0);
+  });
+});
+
+describe('scoreDocument 白名單形狀限制（isWhitelisted）', () => {
+  const text = '病歷號：MRN-2026-000003，出院請攜帶 MRN-2026-000003';
+  const value = 'MRN-2026-000003';
+  const first = text.indexOf(value);
+  const second = text.indexOf(value, first + value.length);
+
+  it('病歷號殘留只遮到第二處、第一處完全未觸及：不符白名單（形狀須為部分遮蔽）', () => {
+    const score = scoreDocument(text, [item(text, '病歷號', second, second + value.length)], doc([finding('病歷號', value, 2)], 'docx'));
+    const residual = score.residuals[0];
+    expect(residual.finding.uncovered).toBe(1);
+    expect(residual.partial).toBe(0);
+    expect(residual.finding.occurrences[0].exposed).toBe(value);
+    expect(isWhitelisted(score, 'residual', residual.finding)).toBe(false);
+  });
+
+  it('病歷號外露的若是後綴（000003）而非「MRN-」前綴：不符白名單', () => {
+    const items = [item(text, '病歷號', first, first + 9), item(text, '病歷號', second, second + value.length)];
+    const score = scoreDocument(text, items, doc([finding('病歷號', value, 2)], 'docx'));
+    const residual = score.residuals[0];
+    expect(residual.partial).toBe(1);
+    expect(residual.finding.occurrences[0].exposed).toBe('000003');
+    expect(isWhitelisted(score, 'residual', residual.finding)).toBe(false);
+  });
+
+  it('病歷號僅「MRN-」前綴外露的部分遮蔽：符合白名單', () => {
+    const items = [item(text, '病歷號', first + 4, first + value.length), item(text, '病歷號', second, second + value.length)];
+    const score = scoreDocument(text, items, doc([finding('病歷號', value, 2)], 'docx'));
+    const residual = score.residuals[0];
+    expect(residual.partial).toBe(1);
+    expect(residual.finding.occurrences[0].exposed).toBe('MRN-');
+    expect(isWhitelisted(score, 'residual', residual.finding)).toBe(true);
+  });
+
+  it('非白名單格式（txt）的病歷號殘留：本來就不符白名單', () => {
+    const items = [item(text, '病歷號', first + 4, first + value.length), item(text, '病歷號', second, second + value.length)];
+    const score = scoreDocument(text, items, doc([finding('病歷號', value, 2)], 'txt'));
+    expect(isWhitelisted(score, 'residual', score.residuals[0].finding)).toBe(false);
   });
 });

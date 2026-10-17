@@ -3,13 +3,17 @@
 //   涵蓋＝完整涵蓋：出現位置必須被偵測項目的「聯集」完全包住（游標走訪到底），
 //     只碰到前綴或後綴（如「王」之於「王小明」、「2026-000003」之於「MRN-2026-000003」）不算涵蓋；
 //   類別＝逐出現位置檢查：完整涵蓋的位置，其涵蓋項目類別必須全等於答案類別（值層至少一處對不算過關）；
-//   次數＝builtin 答案的實際出現次數必須等於 answer-key 記錄值（實際為 0 另歸類為值不存在）；
-//   過度遮蔽＝偵測 span 超出所有答案值的部分，只能含標點、空白與欄位標籤（isAllowedExcess 邊界），
-//     「王小明；診斷：肺炎」這種把病名一起遮掉的 span 會被拒絕。
+//   次數＝builtin 答案的實際出現次數必須等於 answer-key 記錄值——獨立於漏抓檢查（漏抓白名單不能吸收
+//     次數退步；值不存在時無從比較，另歸類為值不存在）；
+//   過度遮蔽＝偵測 span 超出所有答案值的部分，只能是標點與「答案值之前」的明確欄位標籤
+//     （Patient／Name／Dr／MRN 等清單，見 LATIN_LABELS／CJK_LABELS）——任意英文單字（pneumonia）
+//     或出現在值之後的標籤（「王小明 Dr.」）都會被拒絕。
 // 值層 hit＝至少一個出現位置完整涵蓋；miss＝值有出現但沒有任何位置完整涵蓋。
-// 殘留（residual）＝hit 之後仍未完整涵蓋的位置，分「未觸及」與「部分遮蔽」（有項目碰到但沒蓋滿）。
-// 已知限制列在 KNOWN_LIMITATIONS 並帶「每份文件上界」：白名單內會出現在報告但不計失敗，
-// 超出上界或白名單外都會失敗；規則進步（漏抓／殘留變少）只會讓測試更綠，不會變紅。
+// 殘留（residual）＝hit 之後仍未完整涵蓋的位置，分「未觸及」與「部分遮蔽」（有項目碰到但沒蓋滿），
+// 並記錄每個位置「外露的內容」（exposed）供白名單形狀檢查。
+// 已知限制列在 KNOWN_LIMITATIONS，每條帶「每份文件上界」與「形狀限制」（shape／allowedExposed）：
+// 白名單內且符合形狀才免計失敗——例如病歷號只容許「MRN-」前綴外露的部分遮蔽，完全未遮蔽的殘留
+// 一樣會失敗；規則進步（漏抓／殘留變少）只會讓測試更綠，不會變紅。
 import type { RedactionItem } from '../../src/core/types.ts';
 
 export interface CorpusFinding {
@@ -43,39 +47,61 @@ export interface KnownLimitation {
   kind: LimitationKind;
   /** 每份文件容許的上界：miss／valueNotFound 以筆數計，residual 以未涵蓋位置數計。 */
   maxPerDoc: number;
+  /**
+   * 形狀限制：'untouched'＝未涵蓋的位置不得有任何項目觸及（純漏抓／純未觸及）；
+   * 'partial'＝未涵蓋的位置必須是部分遮蔽（有項目觸及但沒蓋滿）。不符形狀的白名單組合一樣失敗。
+   */
+  shape?: 'untouched' | 'partial';
+  /** 形狀為 'partial' 時，未涵蓋位置外露的內容必須完全等於此字串（如「MRN-」）。 */
+  allowedExposed?: string;
   reason: string;
 }
 
-/** 已知限制白名單：白名單內的漏抓／殘留會出現在報告但不計為驗收失敗，但每份文件不得超過上界。 */
+/** 已知限制白名單：符合類別／格式／形狀且未超過上界才免計失敗，仍會出現在報告。 */
 export const KNOWN_LIMITATIONS: KnownLimitation[] = [
   {
     category: '醫療日期',
     formats: ['docx', 'pdf'],
     kind: 'miss',
     maxPerDoc: 3,
+    shape: 'untouched',
     reason:
-      'docx／pdf 把日期放在表格欄位，萃取後標籤與值不同行；醫療日期規則刻意只抓同一行的標籤日期以避免誤抓，表格感知屬後續規則改善。僅容許純漏抓（無任何偵測項目），每份文件至多 3 筆（入院／手術／出院日期）',
+      'docx／pdf 把日期放在表格欄位，萃取後標籤與值不同行；醫療日期規則刻意只抓同一行的標籤日期以避免誤抓，表格感知屬後續規則改善。僅容許純漏抓（不得有任何項目觸及，形狀檢查強制）、出現次數仍須與 answer-key 一致；每份文件至多 3 筆（入院／手術／出院日期）',
   },
   {
     category: '英文姓名',
     formats: ['txt', 'md', 'docx', 'pdf'],
     kind: 'residual',
     maxPerDoc: 1,
+    shape: 'untouched',
     reason:
-      '無標籤的英文姓名重複出現不在內建規則範圍（只抓 Patient Name／Dr. 等標籤後的名字），刻意留給 AI 稽核／人工圈選；每份文件至多 1 處（醫師姓名若也開始漏抓會超過上界）',
+      '無標籤的英文姓名重複出現不在內建規則範圍（只抓 Patient Name／Dr. 等標籤後的名字），刻意留給 AI 稽核／人工圈選。殘留位置必須完全未被觸及——規則若開始部分匹配無標籤英文名，形狀檢查會拒絕；每份文件至多 1 處（醫師姓名若也開始漏抓會超過上界）',
   },
   {
     category: '病歷號',
     formats: ['docx', 'pdf'],
     kind: 'residual',
     maxPerDoc: 1,
+    shape: 'partial',
+    allowedExposed: 'MRN-',
     reason:
-      '表格欄位「病例編號／病歷號」的值含兩個識別碼（CASE-…　MRN-…），病歷號規則只抓到 MRN 的數字段，「MRN-」前綴仍在輸出中（部分遮蔽）；出院指示處為完整涵蓋。每份文件至多 1 處',
+      '表格欄位「病例編號／病歷號」的值含兩個識別碼（CASE-…　MRN-…），病歷號規則只抓到 MRN 的數字段。僅容許「MRN-」前綴外露的部分遮蔽（外露內容必須完全等於 "MRN-"）；完全未遮蔽、或外露其他前綴／後綴，都會被形狀檢查拒絕；每份文件至多 1 處',
   },
 ];
 
-export function isKnownLimitation(category: string, format: string, kind: LimitationKind): boolean {
-  return KNOWN_LIMITATIONS.some((k) => k.category === category && k.formats.includes(format) && k.kind === kind);
+/** 一筆 finding 是否落在已知限制白名單內：類別＋格式＋kind 相符，且符合形狀限制（如有）。 */
+export function isWhitelisted(score: DocScore, kind: LimitationKind, finding: FindingScore): boolean {
+  const known = KNOWN_LIMITATIONS.find(
+    (k) => k.category === finding.category && k.formats.includes(score.format) && k.kind === kind,
+  );
+  if (!known) return false;
+  if (known.shape || known.allowedExposed) {
+    const uncovered = finding.occurrences.filter((o) => !o.covered);
+    if (known.shape === 'untouched' && uncovered.some((o) => o.partial)) return false;
+    if (known.shape === 'partial' && uncovered.some((o) => !o.partial)) return false;
+    if (known.allowedExposed && uncovered.some((o) => o.exposed !== known.allowedExposed)) return false;
+  }
+  return true;
 }
 
 /** 一份文件中，某類別在某通道（miss／residual／valueNotFound）的筆數，用於檢查白名單上界。 */
@@ -92,6 +118,8 @@ export interface OccurrenceScore {
   covered: boolean;
   /** 有偵測項目重疊但未完整涵蓋（部分遮蔽，如「MRN-」前綴外露）。 */
   partial: boolean;
+  /** 此位置未被任何項目涵蓋而外露的內容（完整涵蓋＝空字串；未觸及＝整個值；部分遮蔽＝外露片段）。 */
+  exposed: string;
   /** 涵蓋（或觸及）此位置的偵測類別。 */
   detectedCategories: string[];
   /** 完整涵蓋但涵蓋項目類別不全等於答案類別。 */
@@ -155,7 +183,7 @@ export interface DocScore {
   valueNotFound: FindingScore[];
   /** builtin 命中但有出現位置未被完整涵蓋。 */
   residuals: ResidualScore[];
-  /** builtin 且實際出現次數不等於 answer-key 記錄值。 */
+  /** builtin 且實際出現次數不等於 answer-key 記錄值（漏抓時也獨立檢查）。 */
   countMismatches: FindingScore[];
   /** 完整涵蓋但偵測類別與答案不符的位置（逐位置，不白名單）。 */
   categoryErrors: CategoryError[];
@@ -201,38 +229,67 @@ function walkCoverage(items: RedactionItem[], start: number, end: number): { ite
   return { items: used, cursor };
 }
 
-/** span 超出所有答案值範圍的部分（依序串接；空字串代表 span 完全落在答案值內）。 */
-function excessText(text: string, item: { start: number; end: number }, ranges: { start: number; end: number }[]): string {
-  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+/** [start, end) 減去 others（聯集）後剩下的文字。 */
+function gapText(text: string, start: number, end: number, others: { start: number; end: number }[]): string {
+  const sorted = others.filter((o) => o.start < end && start < o.end).sort((a, b) => a.start - b.start);
+  let cursor = start;
+  let out = '';
+  for (const o of sorted) {
+    if (o.start > cursor) out += text.slice(cursor, o.start);
+    cursor = Math.max(cursor, o.end);
+  }
+  if (cursor < end) out += text.slice(cursor, end);
+  return out;
+}
+
+/**
+ * 過度遮蔽檢查用：偵測 span 超出所有答案值的部分切成片段，並標記片段是否在第一個重疊答案值「之前」。
+ * 表單標籤（Patient Name：／轉介院所：…）只會出現在值之前——值之後的超出部分只容許標點與空白。
+ */
+function excessSegments(
+  text: string,
+  item: { start: number; end: number },
+  ranges: { start: number; end: number }[],
+): { text: string; labelAllowed: boolean }[] {
+  const inside = ranges.filter((r) => r.start < item.end && item.start < r.end).sort((a, b) => a.start - b.start);
+  const firstStart = inside.length > 0 ? inside[0].start : item.start;
+  const segments: { text: string; labelAllowed: boolean }[] = [];
   let cursor = item.start;
-  let excess = '';
-  for (const r of sorted) {
-    if (r.end <= cursor || r.start >= item.end) continue;
-    if (r.start > cursor) excess += text.slice(cursor, r.start);
+  for (const r of inside) {
+    if (r.start > cursor) segments.push({ text: text.slice(cursor, r.start), labelAllowed: cursor < firstStart });
     cursor = Math.max(cursor, r.end);
   }
-  if (cursor < item.end) excess += text.slice(cursor, item.end);
-  return excess;
+  if (cursor < item.end) segments.push({ text: text.slice(cursor, item.end), labelAllowed: false });
+  return segments;
 }
 
 /** 分隔符：標點、空白（含全型）、斜線、破折號。 */
 const SEPARATOR_CLASS = '：:、,，;；（）()／/\\.\\s\\-';
 const SEPARATOR_RUN = new RegExp(`[${SEPARATOR_CLASS}]+`);
-/** 表單欄位標籤（機構文件常見）；「肺炎」這類內容詞刻意不在列表內。 */
-const CJK_LABELS = [
+/**
+ * 明確的標籤字清單（大小寫須完全相符，表單標籤慣例）。拉丁文部分只收醫療表單常見欄位字——
+ * 任意英文單字（如 pneumonia）不是標籤。中文部分收機構表單欄位標籤。
+ */
+const LATIN_LABELS = new Set([
+  'Patient', 'Name', 'Dr', 'Mr', 'Mrs', 'Ms', 'Prof', 'MRN', 'Chart', 'No', 'Medical', 'Record',
+  'Tel', 'Phone', 'Mobile', 'Email', 'DOB', 'ID', 'Case',
+]);
+const CJK_LABELS = new Set([
   '轉介院所', '主治醫師', '緊急聯絡人', '病例編號', '檢查序號', '病歷號', '英文姓名', '身分證字號',
   '出生日期', '聯絡手機', '住家電話', '通訊地址', '電子郵件', '診斷', '姓名', '手機', '電話', '住址', '地址', '日期', '院所',
-];
-const LABEL_TOKEN = new RegExp(`^(?:[A-Za-z]{1,16}|${CJK_LABELS.join('|')})$`);
+]);
 
 /**
- * 過度遮蔽的容許邊界：span 超出答案值的部分切成 token 後，每個 token 都必須是
- * 標點／空白（會被切掉）、拉丁字母標籤字（Patient／Name／Dr／MRN…）或上述欄位標籤。
- * 數字、病名（肺炎）、地址片段等任何其他內容都算過度遮蔽。
+ * 過度遮蔽的容許邊界：超出片段切成 token 後——
+ * 在答案值之前的片段，每個 token 必須是明確列出的欄位標籤（LATIN_LABELS／CJK_LABELS）；
+ * 在答案值之後（或之間）的片段，只能是標點與空白（不得有任何 token）。
+ * 數字、病名（肺炎／pneumonia）、值之後的標籤（「王小明 Dr.」）都算過度遮蔽。
  */
-function isAllowedExcess(excess: string): boolean {
-  if (!excess) return true;
-  return excess.split(SEPARATOR_RUN).filter(Boolean).every((token) => LABEL_TOKEN.test(token));
+function isAllowedExcess(segments: { text: string; labelAllowed: boolean }[]): boolean {
+  return segments.every((seg) => {
+    const tokens = seg.text.split(SEPARATOR_RUN).filter(Boolean);
+    return seg.labelAllowed ? tokens.every((t) => LATIN_LABELS.has(t) || CJK_LABELS.has(t)) : tokens.length === 0;
+  });
 }
 
 /** 對一份文件計分：text＝解析後全文、items＝detect() 結果、answer＝answer-key 的該份文件。 */
@@ -254,6 +311,7 @@ export function scoreDocument(text: string, items: RedactionItem[], answer: Corp
         end,
         covered,
         partial: !covered && touching.length > 0,
+        exposed: gapText(text, start, end, active),
         detectedCategories,
         categoryError: covered && detectedCategories.some((c) => c !== f.category),
       };
@@ -298,12 +356,13 @@ export function scoreDocument(text: string, items: RedactionItem[], answer: Corp
       valueNotFound.push(f);
       continue;
     }
+    // 次數檢查獨立於漏抓：值存在就比對次數，漏抓白名單不能吸收次數退步。
+    if (f.actualOccurrences !== f.expectedOccurrences) {
+      countMismatches.push(f);
+    }
     if (!f.hit) {
       misses.push(f);
       continue;
-    }
-    if (f.actualOccurrences !== f.expectedOccurrences) {
-      countMismatches.push(f);
     }
     if (f.uncovered > 0) {
       const known = KNOWN_LIMITATIONS.find((k) => k.category === f.category && k.kind === 'residual');
@@ -321,9 +380,10 @@ export function scoreDocument(text: string, items: RedactionItem[], answer: Corp
       falsePositives.push({ category: it.category, span });
       continue;
     }
-    const excess = excessText(text, it, ranges);
+    const segments = excessSegments(text, it, ranges);
+    const excess = segments.map((s) => s.text).join('');
     if (!excess) continue; // span 完全落在答案值內（若只蓋到一部分，由殘留通道以部分遮蔽處理）
-    if (isAllowedExcess(excess)) spanDiffs.push({ category: it.category, span, excess });
+    if (isAllowedExcess(segments)) spanDiffs.push({ category: it.category, span, excess });
     else overRedactions.push({ category: it.category, span, excess });
   }
 

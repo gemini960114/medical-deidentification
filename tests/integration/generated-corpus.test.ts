@@ -3,9 +3,10 @@
 // 再解析 → restore。answer-key 的 expectation 分兩層：
 //   builtin＝內建規則必須命中；audit＝刻意留給人工／AI 稽核的案例，不算內建失敗。
 // 計分有四個獨立失敗通道（語意見 score.ts 標頭與 tests/unit/score.test.ts 的反例 fixture）：
-//   漏抓（值有出現但無任何位置完整涵蓋）、類別錯誤（逐出現位置）、次數不符、過度遮蔽（超出
-//   答案值的部分只能是標籤／標點）。已知限制定義在 score.ts 的 KNOWN_LIMITATIONS，每條帶
-//   「每份文件上界」：白名單內會出現在報告但不計失敗，超過上界或白名單外都會讓測試失敗；
+//   漏抓（值有出現但無任何位置完整涵蓋）、類別錯誤（逐出現位置）、次數不符（獨立於漏抓檢查）、
+//   過度遮蔽（超出答案值的部分只能是「值之前」的明確欄位標籤與標點）。已知限制定義在 score.ts 的
+//   KNOWN_LIMITATIONS，每條帶「每份文件上界」與「形狀限制」：例如病歷號只容許「MRN-」前綴外露的
+//   部分遮蔽——完全未遮蔽的殘留、醫療日期被部分匹配、英文姓名被規則碰到，都會被形狀檢查拒絕；
 //   誤判與值不存在沒有任何白名單。規則進步（misses／residuals 變少）只會更綠，不會變紅。
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +21,7 @@ import { restore } from '../../src/core/restorer';
 import { generateDocument, parseDocument } from '../../src/formats';
 import { generateCorpus } from '../../scripts/batch-test-generator/generate.ts';
 import {
-  isKnownLimitation,
+  isWhitelisted,
   limitationCount,
   locateOccurrences,
   scoreDocument,
@@ -105,18 +106,20 @@ describe('產生語料自動驗收（generateCorpus → parseDocument → detect
     const violations: string[] = [];
     for (const score of docScores) {
       for (const miss of score.misses) {
-        if (!isKnownLimitation(miss.category, score.format, 'miss')) {
+        if (!isWhitelisted(score, 'miss', miss)) {
           violations.push(`${score.file}：漏抓 ${miss.category}「${miss.value}」（偵測類別 ${miss.detectedCategories.join('/') || '無'}）`);
         }
       }
       // 值不存在（萃取保真）與誤判沒有白名單：公司已改用不換行欄位控制案例，任何值消失都要調查。
       for (const notFound of score.valueNotFound) {
-        violations.push(`${score.file}：值不存在於萃取文字 ${notFound.category}「${notFound.value}」`);
+        if (!isWhitelisted(score, 'valueNotFound', notFound)) {
+          violations.push(`${score.file}：值不存在於萃取文字 ${notFound.category}「${notFound.value}」`);
+        }
       }
       for (const residual of score.residuals) {
         const f = residual.finding;
         const kind = residual.partial > 0 ? '部分遮蔽' : '殘留';
-        if (!isKnownLimitation(f.category, score.format, 'residual')) {
+        if (!isWhitelisted(score, 'residual', f)) {
           violations.push(`${score.file}：${kind} ${f.category}「${f.value}」× ${f.uncovered}`);
         }
       }
