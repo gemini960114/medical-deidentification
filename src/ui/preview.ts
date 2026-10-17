@@ -28,6 +28,24 @@ const pictureUrl = (p: PdfPicture): string => {
 };
 
 /**
+ * Releases a document's picture blob URLs once it is dropped from the batch. A blob URL keeps its
+ * JPEG payload alive until revoked, so without this, removing a scanned PDF would keep every
+ * picture in memory until the tab is closed. Re-rendering a surviving document re-creates its URLs.
+ */
+export function releasePictures(doc: LoadedDocument): void {
+  if (doc.layout?.kind !== 'pdf') return;
+  for (const pg of doc.layout.pages) {
+    for (const pic of pg.pictures ?? []) {
+      const url = pictureUrls.get(pic);
+      if (url !== undefined) {
+        URL.revokeObjectURL(url);
+        pictureUrls.delete(pic);
+      }
+    }
+  }
+}
+
+/**
  * Renders `doc.text[start, end)` into `parent` as plain text spans (data-start/data-plain) and
  * decoration elements (data-id/data-start/data-end/data-tip). A decoration that crosses the
  * range boundary is clipped; its label appears only in the piece where it starts.
@@ -231,6 +249,9 @@ function structureLayer(pg: PdfLayoutPage): SVGElement | null {
   return layer;
 }
 
+/** One live page-fit observer per preview container; a re-render replaces it instead of piling observers onto detached hosts. */
+const fitObservers = new WeakMap<HTMLElement, ResizeObserver>();
+
 function renderPdf(container: HTMLElement, doc: LoadedDocument, decos: Decoration[], pages: PdfLayoutPage[], onToggle?: (p: PdfPicture) => void): void {
   const host = el('div', { class: 'pdf-pages' });
   pages.forEach((pg, i) => {
@@ -284,7 +305,10 @@ function renderPdf(container: HTMLElement, doc: LoadedDocument, decos: Decoratio
     }
   };
   fit();
-  new ResizeObserver(fit).observe(host);
+  fitObservers.get(container)?.disconnect();
+  const observer = new ResizeObserver(fit);
+  observer.observe(host);
+  fitObservers.set(container, observer);
 }
 
 export function renderDocumentPreview(container: HTMLElement, doc: LoadedDocument, decorations: Decoration[], opts: PreviewOptions = {}): void {

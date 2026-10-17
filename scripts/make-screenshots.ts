@@ -3,7 +3,7 @@
 // Run: npm run screenshots
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import puppeteer, { type Page } from 'puppeteer-core';
+import puppeteer, { type ElementHandle, type Page } from 'puppeteer-core';
 
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:4173/';
 const OUT = 'docs/screenshots';
@@ -52,7 +52,8 @@ async function shot(page: Page, name: string, fullPage = false): Promise<void> {
 }
 
 async function upload(page: Page, inputSelector: string, file: string): Promise<void> {
-  const input = await page.waitForSelector(inputSelector);
+  // Cast: the selector is always a file input; waitForSelector's NodeFor inference needs a literal.
+  const input = (await page.waitForSelector(inputSelector)) as ElementHandle<HTMLInputElement> | null;
   await input!.uploadFile(resolve(file));
   await new Promise((r) => setTimeout(r, 600));
 }
@@ -61,7 +62,8 @@ const browser = await puppeteer.launch({ executablePath: CHROME, headless: true 
 const page = await browser.newPage();
 await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 2 });
 page.on('dialog', (d) => void d.accept());
-await page.goto(BASE_URL, { waitUntil: 'networkidle0' });
+await page.goto(BASE_URL, { waitUntil: 'load' });
+await page.waitForNetworkIdle(); // puppeteer 25 removed networkidle0 from goto's waitUntil
 
 // 1. Upload screen (file drop zone + paste box + shared-code options)
 await page.evaluate(() => ((document.querySelector('.code-options') as HTMLDetailsElement).open = true));

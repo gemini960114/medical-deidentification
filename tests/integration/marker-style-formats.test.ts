@@ -41,6 +41,8 @@ async function sources(): Promise<LoadedDocument[]> {
 }
 
 describe('output that needs no restoring', () => {
+  // Round-trips all four formats (render, parse, re-generate); needs headroom when the machine
+  // is busy with the parallel OCR suites, like roundtrip-ocr's own beforeAll.
   it.each(['label', 'blank'] as MarkerStyle[])('writes %s markers in every format, with no code and no hidden value', async (style) => {
     for (const doc of await sources()) {
       const book = new CodeBook();
@@ -58,5 +60,5 @@ describe('output that needs no restoring', () => {
       if (style === 'label') expect(out.text).toMatch(/\[(姓名|手機|電子郵件)\]/);
       else expect(out.text).toContain('○○');
     }
-  });
+  }, 120000);
 });

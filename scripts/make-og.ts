@@ -59,7 +59,8 @@ mkdirSync('public', { recursive: true });
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
 const page = await browser.newPage();
 await page.setViewport({ width: 1200, height: 630, deviceScaleFactor: 1 });
-await page.setContent(html, { waitUntil: 'networkidle0' });
+await page.setContent(html, { waitUntil: 'load' });
+await page.waitForNetworkIdle(); // puppeteer 25 removed networkidle0 from setContent's waitUntil
 await page.screenshot({ path: 'public/og.png', type: 'png' });
 await browser.close();
 console.log('saved public/og.png');

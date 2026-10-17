@@ -8,7 +8,7 @@ import { getEffectivePatterns, loadConfig, saveConfig, setCategoryRetention } fr
 import { MODE_LABELS, checkRetention, describeRetention, modesFor, splitFor, type RetentionMode } from '../core/retention';
 import { ACCEPT_ATTR, formatLimitations, generateDocument, mappingFileName, outputFileName, parseDocument } from '../formats';
 import { button, clear, downloadBlob, dropZone, el, rejectOversized, toast, withBusy } from './components';
-import { renderDocumentPreview, type Decoration } from './preview';
+import { releasePictures, renderDocumentPreview, type Decoration } from './preview';
 import { MERGED_MAPPING_NAME, buildArchive } from '../formats/batch';
 import { SAMPLES, samplesSection } from './samples';
 import { ocrOverlay } from './ocr-overlay';
@@ -295,6 +295,7 @@ function redetect(root: HTMLElement): void {
 function removeDoc(index: number, root: HTMLElement): void {
   const d = state.docs[index];
   if (d.items.some((it) => it.active) && !isDownloaded(d) && !confirm(`「${d.doc.fileName}」尚未下載去識別化結果${restorable() ? '與編碼表' : ''}，確定要移除嗎？`)) return;
+  releasePictures(d.doc);
   state.docs.splice(index, 1);
   state.active = Math.min(state.active, Math.max(0, state.docs.length - 1));
   render(root);
@@ -302,6 +303,7 @@ function removeDoc(index: number, root: HTMLElement): void {
 
 function resetAll(root: HTMLElement): void {
   if (hasUnsavedResults() && !confirm('尚有檔案未下載去識別化結果與編碼表，確定要全部清除嗎？')) return;
+  for (const d of state.docs) releasePictures(d.doc);
   state.docs = [];
   state.active = 0;
   state.sharedBook = null;
@@ -606,7 +608,12 @@ function renderOutputPanel(root: HTMLElement): HTMLElement {
   const saveDefault = () => {
     let config = loadConfig();
     for (const [category, r] of state.overrides) config = setCategoryRetention(config, category, r);
-    saveConfig(config);
+    const err = saveConfig(config);
+    if (err) {
+      // Nothing was persisted: say so instead of claiming the defaults were saved.
+      toast(err, 'error', 7000);
+      return;
+    }
     // The saved default is now each item's own rule retention, so the output stays the same after clearing overrides.
     for (const d of state.docs) {
       for (const it of d.items) {

@@ -45,8 +45,16 @@ function readRetention(x: unknown): Record<string, Retention> {
   return out;
 }
 
-export function saveConfig(config: PatternConfig): void {
-  storage()?.setItem(STORAGE_KEY, JSON.stringify(config));
+/** Persists the config; returns null on success or an error message (quota exceeded, storage blocked). */
+export function saveConfig(config: PatternConfig): string | null {
+  const s = storage();
+  if (!s) return '此環境沒有可用的本機儲存，設定不會保留';
+  try {
+    s.setItem(STORAGE_KEY, JSON.stringify(config));
+    return null;
+  } catch (e) {
+    return `無法儲存設定（${(e as Error).name === 'QuotaExceededError' ? '瀏覽器儲存空間不足' : (e as Error).message}），重新整理後設定會遺失`;
+  }
 }
 
 /** Returns an error message, or null when the regex compiles with the 'gu' flags. */
