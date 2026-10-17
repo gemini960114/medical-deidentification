@@ -74,7 +74,9 @@ const FORMATS: OutputFormat[] = ['txt', 'md', 'docx', 'pdf'];
 const ENGLISH_FIRST = ['Emily', 'Olivia', 'Sophia', 'Amelia', 'James', 'Daniel', 'Henry', 'Lucas', 'Grace', 'Ethan'];
 const ENGLISH_LAST = ['Chen', 'Lin', 'Wang', 'Chang', 'Lee', 'Huang', 'Tsai', 'Wu', 'Liu', 'Chou'];
 const DIAGNOSES = ['社區型肺炎', '急性闌尾炎', '第二型糖尿病控制不佳', '右膝退化性關節炎', '泌尿道感染', '急性腸胃炎', '高血壓合併暈眩', '左側橈骨骨折'];
-const CLINICS = ['晴川聯合診所', '安和家庭診所', '康澤聯合診所', '仁心內科診所'];
+// 診所名刻意不含「的與和及…」等連接詞字元（公司規則的 COMPANY_NOT_FIRST 反誤抓設計，見 patterns.ts），
+// 確保機構名是公司規則的可控案例；含「和」的名稱（如安和家庭診所）只會從「家庭」起抓。
+const CLINICS = ['晴川聯合診所', '安康家庭診所', '康澤聯合診所', '仁心內科診所'];
 
 function parsePositiveInt(raw: string | undefined, fallback: number, name: string, max: number): number {
   if (raw === undefined) return fallback;
@@ -168,6 +170,9 @@ function docModel(c: MedicalCase): DocModel {
           ['聯絡方式', `手機 ${c.mobile}　電話 ${c.landline}　電子郵件 ${c.email}`],
           ['通訊地址', c.address],
           ['緊急聯絡人', `${c.emergencyName}　手機 ${c.emergencyMobile}`],
+          // PDF 版面換行會把長段落中的機構名拆到兩行（萃取保真議題）；放入表格欄位保證不換行，
+          // 作為公司規則在 pdf 的控制案例——段落中不再重複機構名，四種格式的出現次數一致。
+          ['轉介院所', c.clinic],
         ],
       },
       { type: 'heading', text: '住院資料' },
@@ -185,7 +190,7 @@ function docModel(c: MedicalCase): DocModel {
       { type: 'para', text: c.diagnosis },
       { type: 'heading', text: '住院經過' },
       { type: 'para', text: `${c.patientName}因${c.diagnosis}住院治療，由 Dr. ${c.doctorEnglish} 負責照護。${c.englishName}於治療後症狀改善，生命徵象穩定。`, indent: true },
-      { type: 'para', text: `另安排於 ${c.reverseDate} 入院接受日間檢查，院內檢查序號 ${c.examId}，轉介院所為${c.clinic}。`, indent: true },
+      { type: 'para', text: `另安排於 ${c.reverseDate} 入院接受日間檢查，院內檢查序號 ${c.examId}。`, indent: true },
       { type: 'heading', text: '出院指示' },
       { type: 'para', text: `請依醫囑服藥，若有不適請聯絡 ${c.mobile}，並攜帶病歷號 ${c.mrn} 回診。`, indent: true },
     ],
@@ -210,7 +215,7 @@ function planted(c: MedicalCase): FindingSeed[] {
     { category: '醫療日期', value: c.dischargeDate, expectation: 'builtin' },
     { category: '姓名', value: c.doctorName, expectation: 'builtin' },
     { category: '英文姓名', value: `Dr. ${c.doctorEnglish}`, expectation: 'builtin' },
-    { category: '公司', value: c.clinic, expectation: 'builtin' },
+    { category: '公司', value: c.clinic, expectation: 'builtin', note: '四種格式皆以「轉介院所」標籤行／表格欄位呈現；docx／pdf 欄位版面不換行，作為 PDF 換行拆值的控制案例' },
     { category: '醫療日期', value: c.reverseDate, expectation: 'audit', note: '日期在「入院」之前，內建標籤規則刻意不命中' },
     { category: '識別碼', value: c.examId, expectation: 'audit', note: '院內檢查序號，需 AI 或自訂規則' },
   ];
