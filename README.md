@@ -4,7 +4,15 @@
 
 本工具使用瀏覽器與 Node 後端共同運作。**文件文字會送至後端與設定的模型服務；不是離線工具，也不是零外傳的純前端網站。** PDF 視覺功能啟用時，另傳送頁面影像。
 
-- [線上服務](https://medical-deidentification-57229660377.asia-east1.run.app)：需要管理者提供的服務存取碼。
+## 示範網站
+
+| 網站 | 服務存取碼 |
+|---|---|
+| [deid.biobank.tw](https://deid.biobank.tw) | `ai4all` |
+
+開啟示範網站後，在首頁上方輸入服務存取碼 `ai4all`，可按「儲存」供下次使用。建議先使用內建的合成範例體驗辨識流程。
+
+- [Cloud Run 備用網址](https://medical-deidentification-57229660377.asia-east1.run.app)
 - [Cloud Run 部署說明](docs/cloud-run.md)
 - [驗收端文字／視覺稽核指南](docs/ai-audit-guide.md)
 - [合成醫療語料產生器](scripts/batch-test-generator/README.md)
@@ -248,3 +256,9 @@ GitHub workflow 僅跑程式檢查、測試、建置、模擬模型的瀏覽器 
 啟動樣式在 `index.html` 提前載入，等待主程式時顯示載入畫面；說明與 FAQ 仍保留給未啟用 JavaScript 的使用者。`public/llms.txt` 提供站台摘要，`llms-full.txt` 於建置時由本 README 產生。靜態 FAQ 文字與 JSON-LD 應同步修改。
 
 本專案採 [MIT License](LICENSE)，原始工具作者為 Dean Lin。Noto Sans TC、霞鶩文楷 TC、Caveat 各依其字型授權使用；OCR 採 Tesseract.js 及相關語言模型。第三方資源授權請連同專案內對應授權檔保留。
+
+## 致謝與專案來源
+
+本專案以 [Dean Lin（@dean9703111）](https://github.com/dean9703111) 開源的 [data-deidentification](https://github.com/dean9703111/data-deidentification) 為基礎，延伸醫療文件處理情境，加入文字與視覺模型輔助辨識，以及 Cloud Run 部署支援。
+
+感謝 Dean Lin 分享文件處理、個資偵測與編碼還原的開源實作，讓本專案得以在既有成果上持續發展。本專案保留原始作者的著作權聲明，並依 [MIT License](LICENSE) 授權使用與修改。
