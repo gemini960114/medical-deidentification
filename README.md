@@ -2,7 +2,7 @@
 
 [![CI & Deploy](https://github.com/dean9703111/data-deidentification/actions/workflows/deploy.yml/badge.svg)](https://github.com/dean9703111/data-deidentification/actions/workflows/deploy.yml)
 [![Live Demo](https://img.shields.io/badge/demo-GitHub%20Pages-2f6fed?logo=github)](https://deanlin.net/data-deidentification/)
-[![Tests](https://img.shields.io/badge/tests-405%20passing-2e9e5b)](#測試與品質)
+[![Tests](https://img.shields.io/badge/tests-409%20passing-2e9e5b)](#測試與品質)
 ![Client-side only](https://img.shields.io/badge/privacy-100%25%20client--side-8e44ad)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
@@ -359,6 +359,7 @@ npm run screenshots  # 重新產生 docs/screenshots/（需先 build + preview�
 npm run eval:ocr     # 以原稿為答案，評分網站實際的掃描檔辨識（需先 build + preview；加 -- --verbose 列出漏抓與誤判，-- --sample main|angles 只跑其中一份）
 npm run og           # 重新產生 public/og.png（社群分享圖，使用本機 Chrome）
 npm run scan-pii     # 批次個資稽核：內建規則＋AI 語意偵測（需 .env，見下）
+npm run generate:test-docs  # 產生全合成批次測試語料與標準答案（見下）
 ```
 
 ### 批次個資稽核（AI 語意偵測）
@@ -375,6 +376,12 @@ npm run scan-pii -- examples/02-人工調整/人工調整範例.txt
 - AI 結果僅供人工覆核：「補抓」項目（標示行號）回工具內圈選或新增自訂規則；「無法定位」表示模型回傳了原文沒有的字串（幻覺），請忽略。加上 `--fail-on-findings` 讓任何補抓以結束碼 1 結束，供批次驗收或 CI 判定；單一檔案讀取或 AI 請求失敗不會中斷批次，最後列出失敗清單。
 - 給非開發者的逐步教學（申請端點、設定、執行、解讀報告、隱私紅線）：**[docs/ai-audit-guide.md](docs/ai-audit-guide.md)**。
 
+### 產生語料與自動驗收
+
+`npm run generate:test-docs -- [--count 100] [--seed 20261017] [--format mixed|all|txt|md|docx|pdf]` 產生**全合成**的中文出院病歷摘要（與任何真實人物無關），附 `answer-key.json` 記錄每份文件植入的個資、預期類別、出現次數與 `builtin`／`audit` 兩層期望——`audit` 是刻意留給人工／AI 稽核的盲點（無標籤英文姓名、語序顛倒日期、院內編號）。參數細節見 [scripts/batch-test-generator/README.md](scripts/batch-test-generator/README.md)。
+
+`tests/integration/generated-corpus.test.ts`（含在 `npm test`）自產 8 份文件（2 病例 × 4 格式）走完整流程：解析 → 偵測 → 對照 answer-key 計分（值命中、出現位置殘留、誤判須為零）→ 去識別化 → 重新產生 → 還原；已知限制（docx／pdf 表格日期、無標籤英文姓名重複、PDF 換行拆值）列白名單不計失敗。大批量（100／500／10000 份）跑分與 JSON／CSV 報告屬後續選配——不需要為了測試增加任何 API，維持純前端零外傳。
+
 
 本專案以 [spec-kit](https://github.com/github/spec-kit) 的規格驅動流程開發：`specs/001-doc-deidentify/`（之後的功能在 `specs/002-…`～`specs/007-intl-pii-patterns/`）內有規格（spec）、研究決策（research）、實作計畫（plan）、資料模型、契約與任務清單；`.specify/memory/constitution.md` 是專案憲章（純前端零外傳、可還原、人工覆核必經、規則透明）。
 
@@ -386,7 +393,7 @@ npm run scan-pii -- examples/02-人工調整/人工調整範例.txt
 
 ## 測試與品質
 
-- **405 個自動化測試**（33 個檔案）：每條內建規則的命中／不命中樣本、身分證與統編檢核碼、編碼唯一性、CSV round-trip、偵測重疊裁決與人工增刪、規則設定持久化、遮罩格式、預覽渲染與 ResizeObserver 釋放、TXT／DOCX／XLSX／PDF 的「去識別化 → 還原」逐字元 round-trip、真實案例（多頁合約書／報價單、60 筆客戶資料）的偵測完整性（身分證／Email／手機 100%）、批量打包；掃描範例以真實 Tesseract 辨識後的偵測命中率（≥ 90%）、文字重建不重疊、保留圖片與還原，以及框線移除、字形校正、圖片偵測、漏字補辨識、線條／底色／勾選框偵測、傾斜與方向判斷等辨識演算法的單元測試；結構重繪的輸出也驗證不含點陣影像、文字還原不變；三種標記方式在各格式的輸出都驗證過，不需還原的輸出不含任何編碼與被隱藏的內容、打包時不含編碼表；國際格式（電話、信用卡、SSN、IBAN、IP、生日）的校驗與英文範例零誤判；醫療欄位（病歷號、醫療日期、英文姓名）的標籤命中、無標籤不誤判與規則優先順序；AI 語意偵測（分塊與重疊、回應剖析、逐出現位置分類、429 重試與 401 快速失敗）以模擬端點測試，不依賴真實 API；輸出設定與偵測規則頁的分組、收合與整組啟停。
+- **409 個自動化測試**（34 個檔案）：每條內建規則的命中／不命中樣本、身分證與統編檢核碼、編碼唯一性、CSV round-trip、偵測重疊裁決與人工增刪、規則設定持久化、遮罩格式、預覽渲染與 ResizeObserver 釋放、TXT／DOCX／XLSX／PDF 的「去識別化 → 還原」逐字元 round-trip、真實案例（多頁合約書／報價單、60 筆客戶資料）的偵測完整性（身分證／Email／手機 100%）、批量打包；掃描範例以真實 Tesseract 辨識後的偵測命中率（≥ 90%）、文字重建不重疊、保留圖片與還原，以及框線移除、字形校正、圖片偵測、漏字補辨識、線條／底色／勾選框偵測、傾斜與方向判斷等辨識演算法的單元測試；結構重繪的輸出也驗證不含點陣影像、文字還原不變；三種標記方式在各格式的輸出都驗證過，不需還原的輸出不含任何編碼與被隱藏的內容、打包時不含編碼表；國際格式（電話、信用卡、SSN、IBAN、IP、生日）的校驗與英文範例零誤判；醫療欄位（病歷號、醫療日期、英文姓名）的標籤命中、無標籤不誤判與規則優先順序；AI 語意偵測（分塊與重疊、回應剖析、逐出現位置分類、429 重試與 401 快速失敗）以模擬端點測試，不依賴真實 API；輸出設定與偵測規則頁的分組、收合與整組啟停；全合成出院病歷摘要語料的自動驗收（固定種子自產 2 病例 × 4 格式於暫存資料夾，對照 answer-key 兩層計分——值命中與出現位置殘留、誤判須為零——並驗證去識別化輸出與還原，已知限制白名單不計失敗）。
 - **靜態檢查**：`npm run lint`＝oxlint（語法層規則）＋tsgolint（型別感知規則，如 `no-floating-promises` 抓忘了 await 的非同步呼叫），全專案零警告零錯誤；CI 在測試前先跑（見開發一節的說明）。
 - **掃描檔辨識評分**：掃描範例由 HTML 產生，產生時一併輸出「原稿」（各頁實際文字、應偵測的印刷／手寫值、應保留的圖片位置，以及表格線段、底色與勾選框）；另有信函與表單以 3°、6° 傾斜及 90°、180° 轉向產生的角度樣本。`npm run eval:ocr` 在真實瀏覽器裡跑網站，逐頁回報字元召回／精確率（不計順序、全半形視為相同）、個資命中、讀錯但仍遮蔽、誤判、圖片保留、線段召回／精確、底色命中、勾選框（位置與勾選狀態）與文字段重疊數。目前：
   - 主範例：字元 99.1%／99.4%、印刷值 138/144、手寫值 10/12、誤判 2、圖片 4/4、線段 66/66（多畫 1）、底色 18/18、勾選框 10/10（狀態全對、無誤判）、文字重疊 0，5 頁約 22 秒；
@@ -404,7 +411,7 @@ src/
 └── ui/          三個頁籤、格式感知預覽、共用元件
 tests/           unit / integration / fixtures / helpers
 examples/        各情境範例檔（虛構資料）
-scripts/         範例產生器（文件模型 → docx/pdf、HTML → 模擬掃描 PDF）、截圖腳本
+scripts/         範例產生器（文件模型 → docx/pdf、HTML → 模擬掃描 PDF）、截圖腳本、批次測試語料產生器與驗收計分
 scripts/assets/scan/  掃描範例用的圖片原檔（以 Codex 生成，不含文字與人物）
 specs/           spec-kit 規格、計畫、任務、契約、驗證紀錄
 public/fonts/    Noto Sans TC（PDF 輸出用）
