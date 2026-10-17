@@ -29,8 +29,8 @@ const stored = () => JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
 describe('patterns view rule groups', () => {
   it('groups the rules into 台灣格式, 國際與通用格式 and 自訂規則, one line each with no RegExp in sight', () => {
     const v = view();
-    expect([...v.querySelectorAll('.rule-group-title')].map((t) => t.textContent)).toEqual(['台灣格式（7）', '國際與通用格式（8）', '自訂規則（0）']);
-    expect([...group(v, 'intl').querySelectorAll('.rule-row')].map((r) => r.getAttribute('data-id'))).toEqual(['us-ssn', 'email', 'intl-phone', 'credit-card', 'iban', 'ipv4', 'ipv6', 'dob']);
+    expect([...v.querySelectorAll('.rule-group-title')].map((t) => t.textContent)).toEqual(['台灣格式（9）', '國際與通用格式（9）', '自訂規則（0）']);
+    expect([...group(v, 'intl').querySelectorAll('.rule-row')].map((r) => r.getAttribute('data-id'))).toEqual(['en-name', 'us-ssn', 'email', 'intl-phone', 'credit-card', 'iban', 'ipv4', 'ipv6', 'dob']);
     expect(rule(v, 'credit-card').querySelector('.badge-信用卡')!.textContent).toBe('信用卡');
     expect(v.querySelector('code.regex')).toBeNull();
     expect(group(v, 'custom').open).toBe(false);
@@ -53,7 +53,7 @@ describe('patterns view rule groups', () => {
     const all = group(v, 'intl').querySelector<HTMLInputElement>('.group-toggle')!;
     all.checked = false;
     all.dispatchEvent(new Event('change'));
-    expect(stored().disabledBuiltins).toEqual(['us-ssn', 'email', 'intl-phone', 'credit-card', 'iban', 'ipv4', 'ipv6', 'dob']);
+    expect(stored().disabledBuiltins).toEqual(['en-name', 'us-ssn', 'email', 'intl-phone', 'credit-card', 'iban', 'ipv4', 'ipv6', 'dob']);
     const one = rule(v, 'email').querySelector<HTMLInputElement>('.rule-toggle')!;
     one.checked = true;
     one.dispatchEvent(new Event('change'));

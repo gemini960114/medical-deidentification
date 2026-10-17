@@ -63,8 +63,8 @@ function afterDigit(value: string, n: number): number {
  * The standard 部分保留: only the part of each value that is useful for statistics and weak for
  * re-identification (surname, ID region + sex, mobile carrier prefix, area code, district, email
  * domain, organisation type, first character of an identifier; for international formats the country
- * code, a card's last four digits, an IBAN's country, an address's network, a birth year). 統編 and SSN
- * stay fully hidden.
+ * code, a card's last four digits, an IBAN's country, an address's network, a birth year). 統編, SSN,
+ * 病歷號 and 英文姓名 stay fully hidden; 醫療日期 keeps only the year, like 生日.
  */
 export function standardSplit(category: Category, value: string): Split {
   switch (category) {
@@ -90,6 +90,8 @@ export function standardSplit(category: Category, value: string): Split {
     }
     case '統編':
     case 'SSN':
+    case '病歷號':
+    case '英文姓名':
       return NONE;
     case '國際電話':
       return { head: phonePrefixLength(value), tail: 0 };
@@ -103,6 +105,7 @@ export function standardSplit(category: Category, value: string): Split {
     case 'IP':
       return { head: value.match(/^(?:\d{1,3}\.){2}|^(?:[0-9a-f]{0,4}:){2}/i)?.[0].length ?? 0, tail: 0 };
     case '生日':
+    case '醫療日期':
       return birthYearSplit(value);
     default:
       return { head: 1, tail: 0 };

@@ -90,8 +90,8 @@ function renderGroup(root: HTMLElement, config: PatternConfig, group: (typeof GR
   all.addEventListener('change', () => {
     let next = config;
     for (const p of patterns) next = setEnabled(next, p, all.checked);
-    saveConfig(next);
-    toast(`${group.title}已全部${all.checked ? '啟用' : '停用'}`, 'success', 1500);
+    const err = saveConfig(next);
+    toast(err ?? `${group.title}已全部${all.checked ? '啟用' : '停用'}`, err ? 'error' : 'success', err ? 7000 : 1500);
     render(root);
   });
   const box = el('details', { class: 'rule-group', 'data-group': group.id, open: !ui.closedGroups.has(group.id) && (group.id !== 'custom' || patterns.length > 0) }) as HTMLDetailsElement;
@@ -112,8 +112,8 @@ function renderRule(root: HTMLElement, config: PatternConfig, p: Pattern): HTMLE
   const toggle = el('input', { type: 'checkbox', class: 'rule-toggle', 'aria-label': `啟用 ${p.name}` }) as HTMLInputElement;
   toggle.checked = p.enabled;
   toggle.addEventListener('change', () => {
-    saveConfig(setEnabled(config, p, toggle.checked));
-    toast(`${p.name} 已${toggle.checked ? '啟用' : '停用'}`, 'success', 1500);
+    const err = saveConfig(setEnabled(config, p, toggle.checked));
+    toast(err ?? `${p.name} 已${toggle.checked ? '啟用' : '停用'}`, err ? 'error' : 'success', err ? 7000 : 1500);
     render(root);
   });
   const open = ui.details.has(p.id);
@@ -143,7 +143,8 @@ function renderRule(root: HTMLElement, config: PatternConfig, p: Pattern): HTMLE
           button('編輯', () => render(root, custom), 'btn btn-small'),
           button('刪除', () => {
             if (!confirm(`刪除自訂規則「${p.name}」？`)) return;
-            saveConfig(removeCustom(config, p.id));
+            const err = saveConfig(removeCustom(config, p.id));
+            if (err) toast(err, 'error', 7000);
             render(root);
           }, 'btn btn-small btn-danger'),
         )
@@ -200,7 +201,11 @@ function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPat
         example: matches()[0] ?? editing?.example ?? '',
         enabled: editing?.enabled ?? true,
       });
-      saveConfig(next);
+      const err = saveConfig(next);
+      if (err) {
+        toast(err, 'error', 7000);
+        return;
+      }
       toast(editing ? '規則已更新' : '規則已新增', 'success');
       ui.formOpen = false;
       render(root);

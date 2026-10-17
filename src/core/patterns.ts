@@ -27,13 +27,49 @@ const MONTH = '(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|Jul
  * counts, a column header above a list of dates does not); other dates are not personal data.
  */
 const BIRTH_LABEL = '(?:DOB|D\\.O\\.B\\.?|[Dd]ate [Oo]f [Bb]irth|[Bb]irth ?[Dd]ate|[Bb]irthday|[Bb]orn(?: [Oo]n)?|出生日期|出生年月日|生日)';
-const BIRTH_DATE =
-  `(?<=${BIRTH_LABEL}[\\x20\\t]*[:：]?[\\x20\\t]*)(?:` +
-  '(?:民國\\s*)?\\d{2,4}\\s*年\\s*\\d{1,2}\\s*月\\s*\\d{1,2}\\s*日?' +
+/** Date shapes shared by the 生日 and 醫療日期 rules. */
+const DATE_BODY =
+  '(?:(?:民國\\s*)?\\d{2,4}\\s*年\\s*\\d{1,2}\\s*月\\s*\\d{1,2}\\s*日?' +
   '|\\d{4}[-/.]\\d{1,2}[-/.]\\d{1,2}' +
   '|\\d{1,2}[-/.]\\d{1,2}[-/.]\\d{4}' +
   `|${MONTH}\\.?\\x20+\\d{1,2}(?:st|nd|rd|th)?,?\\x20+\\d{4}` +
   `|\\d{1,2}(?:st|nd|rd|th)?\\x20+${MONTH}\\.?,?\\x20+\\d{4})`;
+const BIRTH_DATE = `(?<=${BIRTH_LABEL}[\\x20\\t]*[:：]?[\\x20\\t]*)${DATE_BODY}`;
+
+/**
+ * A medical date counts, like a date of birth, only right after a label saying so, on the same line;
+ * bare dates (meeting days, report dates of things) are not personal data.
+ */
+const MED_DATE_LABEL =
+  '(?:(?:入院|出院|住院|手術|開刀|門診|就醫|回診|看診|急診)(?:日期|日)?' +
+  '|(?:檢查|檢驗|報告)(?:日期|日)' +
+  '|(?:Admission|Discharge|Hospitali[sz]ation|Operation|Surgery|Visit|Follow[- ]?up|Exam(?:ination)?)\\s+[Dd]ate' +
+  '|[Dd]ate\\s+of\\s+(?:Admission|Discharge|Operation|Surgery))';
+const MED_DATE = `(?<=${MED_DATE_LABEL}[\\x20\\t]*[:：]?[\\x20\\t]*)${DATE_BODY}`;
+
+/**
+ * A medical record number counts, like a labelled SSN, only after a label saying so: hospital
+ * numbers (病歷號, MRN, Chart No.) are bare digits that no checksum can tell from any other number.
+ */
+const MED_ID_LABEL =
+  '(?:病歷號(?:碼)?|病歷編號|病歷\\s*(?:No\\.?|Number)' +
+  '|(?:門診|掛號|批價|急診|就醫)(?:序)?號(?:碼)?' +
+  '|Chart\\s*(?:No\\.?|Number|#)' +
+  '|Medical\\s+Record\\s*(?:No\\.?|Number|ID)?' +
+  '|MRN(?:\\s*(?:No\\.?|Number))?)';
+const MED_ID = '(?<![A-Za-z0-9])[A-Za-z]{0,3}-?\\d{4,10}(?:-\\d{1,6})?(?![A-Za-z0-9])';
+const MED_ID_FOUND = `(?<=${MED_ID_LABEL}[-\\x20\\t]*[:：#]?[-\\x20\\t]*)${MED_ID}`;
+
+/**
+ * An English name counts only after a person label (Patient:, 姓名：…) or an honorific (Mr., Dr. …),
+ * and needs at least one lowercase letter per word; unlabeled or all-caps names are picked by hand.
+ */
+const EN_NAME_TOKEN = "[A-Z][a-z]{1,15}(?:[-'][A-Z][a-z]{1,15})?";
+const EN_NAME = `${EN_NAME_TOKEN}(?:\\x20+${EN_NAME_TOKEN}){1,2}`;
+const EN_NAME_LABEL = '(?:Patient(?:\\s+Name)?|English\\s+Name|Name\\s+of\\s+Patient|姓名|病人姓名|病患姓名|病人|病患)';
+const EN_NAME_FOUND =
+  `(?<=${EN_NAME_LABEL}[\\x20\\t]*[:：]?[\\x20\\t]*)${EN_NAME}` +
+  `|(?:Mr|Mrs|Ms|Dr|Prof)\\.\\x20+${EN_NAME_TOKEN}(?:\\x20+${EN_NAME_TOKEN})?`;
 
 /** Organisation suffixes that reliably end a company name; bare 公司 is too ambiguous (本公司, 公司電話). */
 const COMPANY_SUFFIX = '(?:股份有限公司|有限公司|無限公司|兩合公司|企業社|工作室|事務所|商行|診所|基金會|協會|合作社|工程行|企業行|實業社|文化事業)';
@@ -82,6 +118,7 @@ const NAME_STOPLIST = new Set([
   '管轄', '管制', '管線', '管道', '管控', '溫濕', '溫馨', '溫室', '何疑', '易雙', '謝您', '謝函', '謝禮', '高層', '高額',
   '方為', '牛市', '包商', '向下', '向上', '任一', '安全', '安裝', '安排',
   '程師', // 工程師
+  '管師', // 個管師／醫管師（個案管理師於…）
   '簡訊', '向本', // 手機簡訊、向本會／本公司申請
 ]);
 
@@ -110,6 +147,17 @@ export const BUILTIN_PATTERNS: Pattern[] = [
     validate: isPlausibleName,
   },
   {
+    id: 'en-name',
+    name: '英文姓名',
+    group: 'intl',
+    note: '「Patient／姓名」等標籤後，或 Mr.／Dr. 等稱謂後的英文姓名；全大寫或無標籤的英文名請在預覽中手動圈選',
+    category: '英文姓名',
+    source: 'builtin',
+    regex: EN_NAME_FOUND,
+    example: 'Patient: John Smith、姓名：Mary Chen-Wang、Dr. Emily Carter',
+    enabled: true,
+  },
+  {
     id: 'tw-id',
     name: '台灣身分證字號',
     group: 'tw',
@@ -120,6 +168,19 @@ export const BUILTIN_PATTERNS: Pattern[] = [
     example: 'A123456789',
     enabled: true,
     validate: isValidTwId,
+  },
+  // Before the number rules: a labelled 病歷號 of bare digits also reads as a mobile, landline,
+  // tax ID or card number, and no checksum can tell them apart — only the label can.
+  {
+    id: 'med-record',
+    name: '病歷號／病籍編號',
+    group: 'tw',
+    note: '「病歷號／門診號／掛號號／批價序號／Chart No.／Medical Record No.／MRN」等標籤後的編號（4–10 位數字，可含字首與連字號）；各院格式不同，未涵蓋的格式請新增自訂規則',
+    category: '病歷號',
+    source: 'builtin',
+    regex: MED_ID_FOUND,
+    example: '病歷號：1234567、MRN: A12345678、門診號：9912345',
+    enabled: true,
   },
   // Before 市話: a labelled SSN of 9 bare digits starting with 0 also reads as a Kaohsiung number.
   // Unlabelled it needs 3-2-4 separators, which no Taiwanese format uses.
@@ -280,6 +341,18 @@ export const BUILTIN_PATTERNS: Pattern[] = [
     source: 'builtin',
     regex: BIRTH_DATE,
     example: 'DOB: 1985-03-14、Date of Birth: March 14, 1985、出生日期：民國 80 年 5 月 1 日',
+    enabled: true,
+    validate: isBirthDate,
+  },
+  {
+    id: 'med-date',
+    name: '醫療日期',
+    group: 'tw',
+    note: '只偵測「入院／出院／手術／門診／就醫」等標籤後、同一行的日期（就醫日期屬間接識別資訊）；驗證月日',
+    category: '醫療日期',
+    source: 'builtin',
+    regex: MED_DATE,
+    example: '入院日期：2024-03-14、手術日期：March 3, 2024、出院日：民國 113 年 5 月 1 日',
     enabled: true,
     validate: isBirthDate,
   },

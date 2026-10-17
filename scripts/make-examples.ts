@@ -69,7 +69,7 @@ write('tests/fixtures/scanned-sample.answer.json', answerKey('public/samples/sca
   write(join(d, '掃描文件.pdf'), scannedPdf);
 }
 
-// 情境 2：人工調整 — 含誤判（高鐵站）與漏抓（罕見姓氏、病歷號）
+// 情境 2：人工調整 — 含誤判（高鐵站）與漏抓（罕見姓氏、無標籤案號）
 {
   const d = dir('02-人工調整');
   write(
@@ -77,12 +77,12 @@ write('tests/fixtures/scanned-sample.answer.json', answerKey('public/samples/sca
     `訪視紀錄
 
 案主禚小華（病歷號 MRN-2024-00123）於上午抵達高鐵站的服務台，由社工王小明接待。
-案主聯絡手機 0933-111-222，居住於高雄市苓雅區四維三路2號。
+案主聯絡手機 0933-111-222，居住於高雄市苓雅區四維三路2號，案號 2024-00123。
 
 【操作提示】
 1. 「高鐵站」會被姓名規則誤判 → 在右側清單按「取消」。
 2. 「禚小華」因姓氏罕見未被偵測 → 在預覽中圈選後選擇類別「姓名」新增。
-3. 「MRN-2024-00123」為病歷號 → 圈選後選擇類別「識別碼」新增（或到「偵測規則」新增自訂規則 MRN-\\d{4}-\\d{5}）。
+3. 「病歷號 MRN-2024-00123」會被內建規則偵測；「案號 2024-00123」沒有標籤、不會被偵測 → 圈選後選擇類別「病歷號」新增。
 `,
   );
 }
@@ -108,7 +108,7 @@ write('tests/fixtures/scanned-sample.answer.json', answerKey('public/samples/sca
   write(join(d, '客服信件.mapping.csv'), serializeMapping(mailRes.mapping));
 }
 
-// 情境 4：偵測規則 — 自訂識別碼（客戶編號、統一編號、病歷號）與停用手機規則
+// 情境 4：偵測規則 — 自訂識別碼（員工編號、客戶編號）與停用手機規則
 {
   const d = dir('04-偵測規則');
   write(
@@ -121,10 +121,9 @@ write('tests/fixtures/scanned-sample.answer.json', answerKey('public/samples/sca
 客戶 CUST-10008（統一編號 04595257，嘉宏資訊股份有限公司）之合約已歸檔。
 
 【操作提示】
-1. 先直接上傳：手機、統一編號、公司名稱會被內建規則偵測；EMP-/MRN-/CUST- 編號不會。
+1. 先直接上傳：手機、統一編號、公司名稱與病歷號（MRN-…）會被內建規則偵測；EMP-/CUST- 編號不會。
 2. 到「偵測規則」停用「手機號碼」，並新增自訂規則（類別皆為「識別碼」）：
    - 員工編號　EMP-\\d{6}
-   - 病歷號　　MRN-\\d{4}-\\d{5}
    - 客戶編號　CUST-\\d{5}
 3. 回到「去識別化」按「重新偵測」：編號被標記、手機不再被標記。
 4. 用同樣的規則處理 01-核心流程/客戶資料.xlsx，可看到「客戶編號」整欄被標記（「統一編號」與「公司」欄位本來就會被內建規則標記）。
