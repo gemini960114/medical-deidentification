@@ -1,7 +1,7 @@
 {
   "name": "data-deidentification",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -43,7 +43,7 @@
   "license": "MIT",
   "author": "Dean Lin",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.12.0"
   },
   "homepage": "https://deanlin.net/data-deidentification/",
   "repository": {

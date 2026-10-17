@@ -5,6 +5,8 @@
 // web app calls it. Text sent here leaves the machine, so the endpoint must sit inside the
 // operator's trust boundary (see README 醫療文件的去識別化).
 
+import type { RedactionItem } from './types';
+
 export interface AiDetectConfig {
   baseUrl: string;
   apiKey: string;
@@ -25,8 +27,16 @@ export interface AiFinding {
 }
 
 export interface LocatedFinding extends AiFinding {
-  /** Index of the value in the text; null when the model returned text that is not in it. */
-  start: number | null;
+  /** Every index where the value occurs in the text; empty when the model returned text not in it. */
+  starts: number[];
+}
+
+export type FindingStatus = 'confirmed' | 'missed' | 'unlocatable';
+
+export interface ClassifiedFinding extends LocatedFinding {
+  status: FindingStatus;
+  /** Occurrences no builtin match covers; non-empty exactly when the finding is residual ('missed'). */
+  uncovered: number[];
 }
 
 interface ChatCompletion {
@@ -43,8 +53,33 @@ const SYSTEM_PROMPT = [
 /** Chunks stay under this many characters so long documents fit the model's context. */
 const CHUNK_CHARS = 1800;
 
+/**
+ * Context repeated at the head of the next chunk so a value — or the label introducing it — that
+ * straddles a chunk boundary is still seen whole by the model. Duplicates this creates in the
+ * model's answers are merged by aiDetect, so overlap costs a few tokens and nothing else.
+ */
+const OVERLAP_CHARS = 200;
+
+/** The tail of `prev` that fits in `budget`: whole lines when possible, else a character suffix. */
+function overlapTail(prev: string, budget: number): string {
+  if (budget <= 0 || !prev) return '';
+  const lines = prev.split('\n');
+  const tail: string[] = [];
+  let len = 0;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const extra = lines[i].length + (tail.length ? 1 : 0);
+    if (len + extra > budget) break;
+    tail.unshift(lines[i]);
+    len += extra;
+  }
+  if (tail.length) return tail.join('\n');
+  // The last line alone exceeds the budget (a hard-split piece): fall back to a character suffix.
+  const chars = Array.from(lines[lines.length - 1]);
+  return chars.slice(Math.max(0, chars.length - budget)).join('');
+}
+
 /** Splits text into chunks of at most `limit` characters, never through a line when avoidable. */
-export function chunkText(text: string, limit = CHUNK_CHARS): string[] {
+export function chunkText(text: string, limit = CHUNK_CHARS, overlap = OVERLAP_CHARS): string[] {
   const chunks: string[] = [];
   let current = '';
   const push = () => {
@@ -54,10 +89,15 @@ export function chunkText(text: string, limit = CHUNK_CHARS): string[] {
   for (const line of text.split('\n')) {
     // A single line longer than the limit is split by characters; the cut is arbitrary but rare.
     const parts: string[] = [];
-    for (let i = 0; i < Array.from(line).length; i += limit) parts.push(Array.from(line).slice(i, i + limit).join(''));
+    const lineChars = Array.from(line);
+    for (let i = 0; i < lineChars.length; i += limit) parts.push(lineChars.slice(i, i + limit).join(''));
     if (!parts.length) parts.push('');
     for (const part of parts) {
-      if (current && current.length + part.length + 1 > limit) push();
+      if (current && current.length + part.length + 1 > limit) {
+        push();
+        // Repeat the end of the previous chunk for context, shrunk so the limit still holds.
+        current = overlapTail(chunks[chunks.length - 1] ?? '', Math.min(overlap, limit - part.length - 1));
+      }
       current = current ? `${current}\n${part}` : part;
     }
   }
@@ -89,14 +129,29 @@ export function parseFindings(content: string): AiFinding[] {
   return findings;
 }
 
-/** Locates each value in the text (first occurrence not yet taken); null when hallucinated. */
+/** Locates every occurrence of each value; empty `starts` mean the model returned text not in it. */
 export function locateFindings(text: string, findings: AiFinding[]): LocatedFinding[] {
-  const cursor = new Map<string, number>();
   return findings.map((f) => {
-    const at = text.indexOf(f.value, cursor.get(f.value) ?? 0);
-    if (at < 0) return { ...f, start: null };
-    cursor.set(f.value, at + f.value.length);
-    return { ...f, start: at };
+    const starts: number[] = [];
+    let at = text.indexOf(f.value);
+    while (at >= 0) {
+      starts.push(at);
+      at = text.indexOf(f.value, at + f.value.length);
+    }
+    return { ...f, starts };
+  });
+}
+
+/**
+ * Verifies findings occurrence by occurrence: a value the builtin rules already covered at its
+ * first spot may still be residual later in the document, so every occurrence is checked before
+ * the finding counts as confirmed. `uncovered` lists the offsets no builtin match covers.
+ */
+export function classifyFindings(text: string, findings: AiFinding[], builtin: RedactionItem[]): ClassifiedFinding[] {
+  return locateFindings(text, findings).map((f) => {
+    const uncovered = f.starts.filter((start) => !builtin.some((it) => it.start < start + f.value.length && start < it.end));
+    const status: FindingStatus = !f.starts.length ? 'unlocatable' : uncovered.length ? 'missed' : 'confirmed';
+    return { ...f, uncovered, status };
   });
 }
 
