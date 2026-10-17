@@ -16,7 +16,7 @@
     </style>
     <script>document.documentElement.classList.add('app-booting');</script>
     <link rel="stylesheet" href="/src/styles.css" />
-    <title>醫療文件去識別化工作站｜病歷個資辨識、覆核與編碼還原</title>
+    <title>DeID｜醫療資料去識別化</title>
     <meta name="description" content="免安裝、規則與必要文字 LLM 協作的線上文件去識別化工具：自動偵測 PDF（含掃描檔）、Word、Excel、TXT 中的姓名、身分證、手機、地址、Email、公司、統編並遮罩，人工覆核後下載；可用 CSV 編碼表完整還原，也可只輸出 [姓名] 或 ○○○。文字經後端送至模型辨識，PDF 視覺能力可勾選。" />
     <meta name="keywords" content="去識別化, 個資去識別化, 個資遮罩, 個資遮蔽, 文件去識別化, 個人資料保護, 個資法, 假名化, 匿名化, PDF 去識別化, 掃描檔 OCR, Word 去識別化, Excel 去識別化, 身分證遮罩, 資料脫敏, ChatGPT 個資, de-identification, PII redaction, LLM 輔助" />
     <meta name="author" content="Dean Lin" />
@@ -28,10 +28,10 @@
     <link rel="apple-touch-icon" href="/favicon.png" />
 
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="文件去識別化工具" />
+    <meta property="og:site_name" content="DeID｜醫療資料去識別化" />
     <meta property="og:locale" content="zh_TW" />
     <meta property="og:url" content="__PUBLIC_BASE_URL__/" />
-    <meta property="og:title" content="醫療文件去識別化工作站｜病歷個資辨識與編碼還原" />
+    <meta property="og:title" content="DeID｜醫療資料去識別化" />
     <meta property="og:description" content="文件文字經後端送至模型辨識，PDF 視覺能力可勾選。自動偵測姓名、身分證、手機、地址、Email、公司、統編，支援 PDF（含掃描檔 OCR）、Word、Excel，保留原格式輸出；可用 CSV 編碼表還原，也可只輸出 [姓名] 或 ○○○。" />
     <meta property="og:image" content="__PUBLIC_BASE_URL__/og.png" />
     <meta property="og:image:type" content="image/png" />
@@ -40,7 +40,7 @@
     <meta property="og:image:alt" content="文件去識別化工具：契約書中的姓名、身分證、手機、地址、公司與統編以遮罩呈現" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="醫療文件去識別化工作站｜病歷個資辨識與編碼還原" />
+    <meta name="twitter:title" content="DeID｜醫療資料去識別化" />
     <meta name="twitter:description" content="文件文字經後端送至模型辨識，PDF 視覺能力可勾選。自動偵測姓名、身分證、手機、地址、Email、公司、統編，支援 PDF（含掃描檔 OCR）、Word、Excel，保留原格式輸出；可用 CSV 編碼表還原，也可只輸出 [姓名] 或 ○○○。" />
     <meta name="twitter:image" content="__PUBLIC_BASE_URL__/og.png" />
     <meta name="twitter:image:alt" content="文件去識別化工具：契約書中的姓名、身分證、手機、地址、公司與統編以遮罩呈現" />
@@ -54,7 +54,7 @@
           "@type": "WebSite",
           "@id": "__PUBLIC_BASE_URL__/#website",
           "url": "__PUBLIC_BASE_URL__/",
-          "name": "文件去識別化工具",
+          "name": "DeID｜醫療資料去識別化",
           "alternateName": "Data De-identification Tool",
           "inLanguage": "zh-Hant-TW",
           "publisher": { "@id": "https://github.com/gemini960114#person" }
@@ -63,7 +63,7 @@
           "@type": "WebPage",
           "@id": "__PUBLIC_BASE_URL__/#webpage",
           "url": "__PUBLIC_BASE_URL__/",
-          "name": "免費文件去識別化工具｜PDF、Word、Excel、掃描檔個資遮罩與還原",
+          "name": "DeID｜醫療資料去識別化",
           "description": "免安裝、規則與必要文字 LLM 協作的線上文件去識別化工具：自動偵測 PDF（含掃描檔）、Word、Excel、TXT 中的姓名、身分證、手機、地址、Email、公司、統編並遮罩，人工覆核後下載；可用 CSV 編碼表完整還原，也可只輸出 [姓名] 或 ○○○。文字經後端送至模型辨識，PDF 視覺能力可勾選。",
           "inLanguage": "zh-Hant-TW",
           "datePublished": "2026-09-02",
@@ -82,7 +82,7 @@
         {
           "@type": "WebApplication",
           "@id": "__PUBLIC_BASE_URL__/#app",
-          "name": "文件去識別化工具",
+          "name": "DeID｜醫療資料去識別化",
           "alternateName": "Data De-identification Tool",
           "url": "__PUBLIC_BASE_URL__/",
           "image": "__PUBLIC_BASE_URL__/og.png",
@@ -276,13 +276,13 @@
     <div id="app">
       <div class="app-loading" role="status" aria-live="polite">
         <span class="startup-symbol" aria-hidden="true">＋</span>
-        <h1>醫療文件去識別化工作站</h1>
+        <h1>DeID｜醫療資料去識別化</h1>
         <p id="startup-status">正在載入工作站，請稍候…</p>
         <p>若長時間未完成，可<a href="">重新載入頁面</a>。</p>
       </div>
       <!-- Static fallback for crawlers and no-JS clients; replaced by the app on load. -->
       <main class="seo-fallback">
-        <h1>醫療文件去識別化工作站</h1>
+        <h1>DeID｜醫療資料去識別化</h1>
         <p>規則與文字 LLM 協作、PDF 視覺可選的文件去識別化工具。上傳 PDF、Word、Excel、TXT、Markdown 或貼上文字，自動偵測姓名、身分證字號、手機、市話、地址、電子郵件、公司名稱、統一編號與自訂識別碼；預覽、人工覆核後下載去識別化文件與 CSV 編碼表，之後可完整還原。</p>
         <noscript><p>本工具需要啟用 JavaScript 才能運作。原始碼與說明：<a href="https://github.com/gemini960114/medical-deidentification">github.com/gemini960114/medical-deidentification</a></p></noscript>
       </main>
