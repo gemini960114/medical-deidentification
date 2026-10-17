@@ -1,0 +1,20 @@
+import { createAuditServer } from './http.ts';
+import { runModelAudit } from './service.ts';
+import { loadAuditConfig } from '../scripts/lib/audit-config.ts';
+
+const config = loadAuditConfig();
+if (!config) throw new Error('必須設定 OPENAI_API_BASE、OPENAI_API_KEY 與 OPENAI_MODEL；文字 LLM 不可略過');
+const models = [...new Set((process.env.OPENAI_MODEL_Available ?? config.model).split(',').map((m) => m.trim()).filter(Boolean))];
+if (!models.includes(config.model)) models.unshift(config.model);
+const accessToken = process.env.AUDIT_ACCESS_TOKEN;
+const visionModels = (process.env.OPENAI_VISION_MODELS ?? '').split(',').map((m) => m.trim()).filter((m) => models.includes(m));
+if (process.env.K_SERVICE && !accessToken) throw new Error('Cloud Run 必須設定 AUDIT_ACCESS_TOKEN，保護共用模型額度');
+const port = Number(process.env.PORT ?? 8080);
+if (!Number.isSafeInteger(port) || port < 0 || port > 65535) throw new Error('PORT 無效');
+const hourlyLimit = Number(process.env.AUDIT_HOURLY_LIMIT ?? 60);
+if (!Number.isSafeInteger(hourlyLimit) || hourlyLimit < 1) throw new Error('AUDIT_HOURLY_LIMIT 必須是正整數');
+const publicBaseUrl = process.env.PUBLIC_BASE_URL?.replace(/\/$/, '');
+if (publicBaseUrl && !/^https?:\/\/[A-Za-z0-9.:[\]-]+$/.test(publicBaseUrl)) throw new Error('PUBLIC_BASE_URL 無效');
+const server = createAuditServer({ models, visionModels, defaultModel: config.model, accessToken, hourlyLimit, publicBaseUrl, audit: (input) => runModelAudit(input, { ...config, timeoutMs: 45_000 }) });
+server.listen(port, '0.0.0.0', () => console.log(`文件去識別化服務已啟動，port=${port}，文字模型為必要流程`));
+process.on('SIGTERM', () => { server.close(); setTimeout(() => process.exit(0), 9000).unref(); });

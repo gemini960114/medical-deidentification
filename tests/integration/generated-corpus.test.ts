@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as pdfjs from 'pdfjs-dist';
+import JSZip from 'jszip';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { detect } from '../../src/core/detector';
 import { BUILTIN_PATTERNS } from '../../src/core/patterns';
@@ -35,9 +36,9 @@ import {
 const CASES = 2;
 const SEED = 17;
 const FORMATS = ['txt', 'md', 'docx', 'pdf'] as const;
-/** planted() 的答案結構：17 個 builtin＋2 個 audit（reverseDate、examId）。 */
+/** planted() 的答案結構：17 個 builtin＋4 個 audit（含病例編號與頁首機構）。 */
 const BUILTIN_PER_DOC = 17;
-const AUDIT_PER_DOC = 2;
+const AUDIT_PER_DOC = 4;
 
 const FONT = new Uint8Array(readFileSync('public/fonts/NotoSansTC-Regular.ttf'));
 const corpusRoot = mkdtempSync(join(tmpdir(), 'deid-corpus-'));
@@ -54,12 +55,22 @@ beforeAll(async () => {
   await import('../../src/formats/pdf');
   pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL('node_modules/pdfjs-dist/build/pdf.worker.min.mjs').href;
 
-  const generated = await generateCorpus({ count: CASES, seed: SEED, format: 'all', output: corpusRoot });
+  const generated = await generateCorpus({ count: CASES, seed: SEED, format: 'all', output: corpusRoot, layout: 'realistic' });
   answerKey = JSON.parse(readFileSync(join(generated.runDir, 'answer-key.json'), 'utf8')) as AnswerKey;
 
   for (const doc of answerKey.documents) {
     const file = new File([readFileSync(join(generated.runDir, doc.file))], doc.file);
+    if (doc.format === 'docx') {
+      const zip = await JSZip.loadAsync(readFileSync(join(generated.runDir, doc.file)));
+      const xml = await zip.file('word/document.xml')!.async('string');
+      expect(xml).toMatch(/<w:tc>[\s\S]*?<w:tbl>/);
+      expect(xml.match(/<w:br w:type="page"/g)).toHaveLength(2);
+    }
     const parsed = await parseDocument(file);
+    if (doc.format === 'pdf') {
+      expect(parsed.layout?.kind).toBe('pdf');
+      if (parsed.layout?.kind === 'pdf') expect(parsed.layout.pages.length).toBeGreaterThanOrEqual(3);
+    }
     const items = detect(parsed.text, BUILTIN_PATTERNS);
     docScores.push(scoreDocument(parsed.text, items, doc));
 

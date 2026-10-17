@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { buildXlsx, type CellSpec } from '../../tests/helpers/xlsx-builder.ts';
 import { Fake } from '../lib/fake.ts';
-import type { DocModel } from '../lib/docmodel.ts';
+import type { Block, DocModel } from '../lib/docmodel.ts';
 import { renderDocx } from '../lib/render-docx.ts';
 import { renderPdf } from '../lib/render-pdf.ts';
 
@@ -59,6 +59,7 @@ export interface CorpusConfig {
   format: FormatChoice;
   /** 輸出根目錄（相對路徑以專案根為準）；語料會寫進 seed-…-count-…-format 子資料夾。 */
   output: string;
+  layout?: 'basic' | 'realistic';
 }
 
 export interface AnswerKey {
@@ -95,13 +96,15 @@ function option(args: string[], name: string): string | undefined {
   return args[at + 1];
 }
 
-function parseArgs(args: string[]): { count: number; seed: number; format: FormatChoice; output: string } {
+function parseArgs(args: string[]): CorpusConfig {
   const count = parsePositiveInt(option(args, 'count'), 100, '--count', 10_000);
   const seed = parsePositiveInt(option(args, 'seed'), 20_261_017, '--seed', 2_147_483_647);
   const format = (option(args, 'format') ?? 'mixed') as FormatChoice;
   if (![...FORMATS, 'mixed', 'all'].includes(format)) throw new Error('--format 必須是 mixed、all、txt、md、docx 或 pdf');
   const output = option(args, 'output') ?? DEFAULT_OUTPUT;
-  return { count, seed, format, output };
+  const layout = option(args, 'layout') ?? 'basic';
+  if (layout !== 'basic' && layout !== 'realistic') throw new Error('--layout 必須是 basic 或 realistic');
+  return { count, seed, format, output, layout };
 }
 
 function pad(n: number, width = 4): string {
@@ -199,6 +202,8 @@ function docModel(c: MedicalCase): DocModel {
 
 function planted(c: MedicalCase): FindingSeed[] {
   return [
+    { category: '公司', value: '晴川醫療體系', expectation: 'audit', note: '頁首機構名稱，完整真值包含文件上下文中的機構' },
+    { category: '識別碼', value: c.caseId, expectation: 'audit', note: '病例編號同樣可識別個案，不應將模型的合理辨識算成誤判' },
     { category: '病歷號', value: c.mrn, expectation: 'builtin' },
     { category: '姓名', value: c.patientName, expectation: 'builtin' },
     { category: '英文姓名', value: c.englishName, expectation: 'builtin', note: '首次有 Patient Name 標籤，後文重複一次且無標籤' },
@@ -242,21 +247,37 @@ function formatFor(choice: FormatChoice, index: number): OutputFormat[] {
   return [choice];
 }
 
-async function writeDocument(dir: string, c: MedicalCase, format: OutputFormat, font: Uint8Array): Promise<string> {
+function realisticBlocks(c: MedicalCase): Block[] {
+  return [1, 2].flatMap((): Block[] => [
+    { type: 'page-break' },
+    { type: 'heading', text: '住院追蹤紀錄（全合成）' },
+    ...Array.from({ length: 8 }, (): Block => ({ type: 'para', text: '每日觀察精神與活動情形，生命徵象穩定，依照照護計畫持續追蹤。衛教內容包含規律作息、營養補充與返家照護，確認已理解注意事項。', indent: true })),
+    { type: 'nested-table', label: '返家照護聯絡資料', rows: [['聯絡手機', c.mobile], ['電子郵件', c.email]] },
+  ]);
+}
+
+function extraText(blocks: Block[]): string {
+  return blocks.map((b) => b.type === 'nested-table' ? `${b.label}\n${b.rows.map(([k, v]) => `${k}：${v}`).join('\n')}` : 'text' in b ? b.text : '').join('\n');
+}
+
+async function writeDocument(dir: string, c: MedicalCase, format: OutputFormat, font: Uint8Array, layout: CorpusConfig['layout']): Promise<{ file: string; text: string }> {
   const base = `${c.caseId}-出院病歷摘要`;
   const file = `${base}.${format}`;
   const path = join(dir, file);
-  if (format === 'txt') writeFileSync(path, plainText(c));
-  else if (format === 'md') writeFileSync(path, markdownText(c));
-  else if (format === 'docx') writeFileSync(path, await renderDocx(docModel(c)));
-  else writeFileSync(path, await renderPdf(docModel(c), font));
-  return file;
+  const extra = layout === 'realistic' ? realisticBlocks(c) : [];
+  const text = (format === 'md' ? markdownText(c) : plainText(c)) + (extra.length ? '\n' + extraText(extra) + '\n' : '');
+  const model = docModel(c);
+  model.blocks.push(...extra);
+  if (format === 'txt' || format === 'md') writeFileSync(path, text);
+  else if (format === 'docx') writeFileSync(path, await renderDocx(model));
+  else writeFileSync(path, await renderPdf(model, font));
+  return { file, text };
 }
 
 /** 產生一批全合成語料（文件＋病患總表＋標準答案），回傳輸出資料夾與 answer-key。 */
 export async function generateCorpus(config: CorpusConfig): Promise<{ runDir: string; answerKey: AnswerKey }> {
   const outputRoot = isAbsolute(config.output) ? config.output : resolve(config.output);
-  const runName = `seed-${config.seed}-count-${config.count}-${config.format}`;
+  const runName = `seed-${config.seed}-count-${config.count}-${config.format}${config.layout === 'realistic' ? '-realistic' : ''}`;
   const runDir = join(outputRoot, runName);
   mkdirSync(runDir, { recursive: true });
 
@@ -266,8 +287,7 @@ export async function generateCorpus(config: CorpusConfig): Promise<{ runDir: st
 
   for (const [i, c] of cases.entries()) {
     for (const format of formatFor(config.format, i + 1)) {
-      const file = await writeDocument(runDir, c, format, font);
-      const text = format === 'md' ? markdownText(c) : plainText(c);
+      const { file, text } = await writeDocument(runDir, c, format, font, config.layout);
       answers.push({ caseId: c.caseId, file, format, findings: answerFor(c, text) });
     }
     if ((i + 1) % 10 === 0 || i + 1 === cases.length) console.log(`已產生 ${i + 1}/${cases.length} 個病例`);

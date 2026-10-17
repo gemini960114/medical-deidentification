@@ -130,6 +130,17 @@ function renderBlock(l: Layout, b: Block): void {
     case 'table':
       l.table(b.columns, b.rows);
       break;
+    case 'nested-table': {
+      l.ensure(190);
+      const top = l.y;
+      l.text(b.label, 10.5);
+      l.table([{ header: '欄位', width: 1 }, { header: '內容', width: 3 }], b.rows);
+      l.page.drawRectangle({ x: MARGIN.left - 6, y: l.y - 4, width: CONTENT_WIDTH + 12, height: top - l.y + 8, borderColor: LINE, borderWidth: 0.8 });
+      break;
+    }
+    case 'page-break':
+      l.newPage();
+      break;
     case 'spacer':
       l.y -= 14;
       break;

@@ -35,7 +35,7 @@ export function ocrOverlay(fileName: string, onCancel: () => void): OcrOverlay {
           stage,
         ),
       ),
-      el('p', { class: 'ocr-note muted small' }, `這是圖片型（掃描）PDF，需在瀏覽器內辨識文字。首次使用會從本站下載約 ${DOWNLOAD_MB} MB 的辨識模型；文件只在本機處理，不會上傳。`),
+      el('p', { class: 'ocr-note muted small' }, `這是圖片型（掃描）PDF，先在瀏覽器內辨識文字。首次使用會從本站下載約 ${DOWNLOAD_MB} MB 的辨識模型；辨識出的文字接著會傳送至 LLM，勾選視覺選項時也會傳送頁面圖片。`),
       el('div', { class: 'ocr-actions' }, cancel),
     ),
   );

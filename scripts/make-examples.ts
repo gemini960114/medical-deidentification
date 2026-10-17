@@ -164,7 +164,7 @@ head -c 105906176 /dev/zero | tr '\\0' 'A' > 超過上限.txt
 // 網頁與 README 的「體驗範例」：同一批檔案以 ASCII 檔名放進 public/samples/（隨站台部署）
 {
   const d = 'public/samples';
-  rmSync(d, { recursive: true, force: true });
+  // Overwrite this generator's assets without deleting the independently generated medical samples.
   mkdirSync(d, { recursive: true });
   write(join(d, 'contract.docx'), contractDocx);
   write(join(d, 'contract.pdf'), await renderPdf(contractDoc, font));

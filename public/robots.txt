@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://gemini960114.github.io/medical-deidentification/sitemap.xml
+Sitemap: __PUBLIC_BASE_URL__/sitemap.xml

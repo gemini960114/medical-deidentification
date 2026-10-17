@@ -93,12 +93,15 @@ function ocrAssets(): Plugin {
 
 export default defineConfig({
   base: './',
+  server: { watch: { ignored: ['**/.deploy/**', '**/scripts/batch-test-generator/output/**'] }, proxy: { '/api': { target: 'http://127.0.0.1:8080', changeOrigin: false } } },
   plugins: [buildDate(), llmsFull(), ocrAssets()],
   build: {
     target: 'es2022',
   },
   test: {
     environment: 'jsdom',
+    // Bound memory use: PDF fonts, OCR and jsdom are expensive when every CPU starts a worker.
+    maxWorkers: 4,
     include: ['tests/**/*.test.ts'],
     // PDF/docx round-trips embed fonts and zip files; give them headroom on slow CI runners.
     testTimeout: 30000,

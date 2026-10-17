@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
   <url>
-    <loc>https://gemini960114.github.io/medical-deidentification/</loc>
+    <loc>__PUBLIC_BASE_URL__/</loc>
     <lastmod>__BUILD_DATE__</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
     <image:image>
-      <image:loc>https://gemini960114.github.io/medical-deidentification/og.png</image:loc>
+      <image:loc>__PUBLIC_BASE_URL__/og.png</image:loc>
       <image:title>文件去識別化工具</image:title>
     </image:image>
   </url>

@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+vi.mock('../../src/core/model-client', () => ({
+  getModelSettings: async () => ({ models: ['test-model'], visionModels: [], defaultModel: 'test-model', textRequired: true, accessRequired: false, maxPages: 20 }),
+  requestModelAudit: async () => ({ model: 'test-model', textCompleted: true, visionCompleted: false, findings: [] }),
+}));
 
 /** A fresh process view (its state is module-wide) with the pasted text loaded and the output settings open. */
 async function loaded(text = '王小明 A123456789 0912-345-678') {
@@ -6,6 +10,7 @@ async function loaded(text = '王小明 A123456789 0912-345-678') {
   const { createProcessView } = await import('../../src/ui/process-view');
   const view = createProcessView();
   document.body.append(view);
+  await vi.waitFor(() => expect(view.querySelector('select[aria-label="辨識模型"] option')).not.toBeNull());
   view.querySelector<HTMLTextAreaElement>('textarea')!.value = text;
   [...view.querySelectorAll('button')].find((b) => b.textContent === '開始去識別化')!.click();
   await vi.waitFor(() => expect(view.querySelector('.output-panel')).not.toBeNull(), { timeout: 5000 });

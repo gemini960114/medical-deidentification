@@ -1,9 +1,6 @@
-// Second-pass AI detection: asks an OpenAI-compatible chat endpoint for personal data the
-// builtin rules cannot see — unlabelled English names, hospital numbers in word orders the
-// label rules miss, semantic identifiers. Opt-in tooling for the acceptance-side audit CLI
-// (scripts/scan-pii.ts) and an explicitly configured on-premises deployment; nothing in the
-// web app calls it. Text sent here leaves the machine, so the endpoint must sit inside the
-// operator's trust boundary (see README 醫療文件的去識別化).
+// Server-side semantic detection shared by the mandatory web backend and acceptance CLI.
+// This module must never be imported into the browser bundle. Text sent to the configured
+// endpoint leaves the browser/server boundary; operators must choose an authorized endpoint.
 
 import type { RedactionItem } from './types';
 
@@ -40,7 +37,7 @@ export interface ClassifiedFinding extends LocatedFinding {
 }
 
 interface ChatCompletion {
-  choices?: { message?: { content?: string } }[];
+  choices?: { message?: { content?: string }; finish_reason?: string }[];
 }
 
 const SYSTEM_PROMPT = [
@@ -129,6 +126,19 @@ export function parseFindings(content: string): AiFinding[] {
   return findings;
 }
 
+/** Acceptance gates must distinguish explicit [] from refusals, invalid JSON and malformed rows. */
+export function parseFindingsStrict(content: string): AiFinding[] {
+  const body = content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  let rows: unknown;
+  try { rows = JSON.parse(body); } catch { throw new Error('AI 稽核回應不是 JSON 陣列'); }
+  if (!Array.isArray(rows) || rows.some((row: unknown) => {
+    if (!row || typeof row !== 'object') return true;
+    const { category, value } = row as Record<string, unknown>;
+    return typeof category !== 'string' || !category.trim() || typeof value !== 'string' || !value.trim();
+  })) throw new Error('AI 稽核回應缺少有效 category／value');
+  return parseFindings(body);
+}
+
 /** Locates every occurrence of each value; empty `starts` mean the model returned text not in it. */
 export function locateFindings(text: string, findings: AiFinding[]): LocatedFinding[] {
   return findings.map((f) => {
@@ -149,7 +159,15 @@ export function locateFindings(text: string, findings: AiFinding[]): LocatedFind
  */
 export function classifyFindings(text: string, findings: AiFinding[], builtin: RedactionItem[]): ClassifiedFinding[] {
   return locateFindings(text, findings).map((f) => {
-    const uncovered = f.starts.filter((start) => !builtin.some((it) => it.start < start + f.value.length && start < it.end));
+    const uncovered = f.starts.filter((start) => {
+      let cursor = start;
+      for (const it of builtin.filter((it) => it.active !== false).sort((a, b) => a.start - b.start)) {
+        if (it.start > cursor) break;
+        if (it.end > cursor) cursor = it.end;
+        if (cursor >= start + f.value.length) return false;
+      }
+      return true;
+    });
     const status: FindingStatus = !f.starts.length ? 'unlocatable' : uncovered.length ? 'missed' : 'confirmed';
     return { ...f, uncovered, status };
   });
@@ -166,7 +184,7 @@ export async function aiDetect(text: string, config: AiDetectConfig): Promise<Ai
   const seen = new Set<string>();
   for (const [i, chunk] of chunks.entries()) {
     const content = await complete(chunk, config);
-    for (const f of parseFindings(content)) {
+    for (const f of parseFindingsStrict(content)) {
       const key = `${f.category}\u0000${f.value}`;
       if (!seen.has(key)) {
         seen.add(key);
@@ -179,11 +197,18 @@ export async function aiDetect(text: string, config: AiDetectConfig): Promise<Ai
 }
 
 async function complete(chunk: string, config: AiDetectConfig): Promise<string> {
+  return completeAi(chunk, config);
+}
+
+export type AiUserContent = string | ({ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } })[];
+
+/** Shared transport for acceptance-side text and visual audits; never imported by the web app. */
+export async function completeAi(content: AiUserContent, config: AiDetectConfig, systemPrompt = SYSTEM_PROMPT): Promise<string> {
   const doFetch = config.fetch ?? fetch;
   const url = `${config.baseUrl.replace(/\/+$/, '')}/chat/completions`;
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: chunk },
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content },
   ];
   const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e));
   let lastError = '未知錯誤';
@@ -198,7 +223,15 @@ async function complete(chunk: string, config: AiDetectConfig): Promise<string> 
         body: JSON.stringify({ model: config.model, temperature: 0, messages }),
         signal: controller.signal,
       });
-      if (res.ok) return (((await res.json()) as ChatCompletion)?.choices?.[0]?.message?.content ?? '').trim();
+      if (res.ok) {
+        const choice = ((await res.json()) as ChatCompletion)?.choices?.[0];
+        const reply = choice?.message?.content;
+        if (choice?.finish_reason === 'length' || typeof reply !== 'string' || !reply.trim()) {
+          fatal = true;
+          throw new Error('端點回應不完整或沒有文字內容，不能視為無個資');
+        }
+        return reply.trim();
+      }
       const status = `${res.status} ${res.statusText}`.trim();
       if (res.status !== 429 && res.status < 500) {
         fatal = true;

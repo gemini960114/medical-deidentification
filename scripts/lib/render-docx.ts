@@ -42,9 +42,9 @@ function para(text: string, style?: string, extra: { align?: string; bold?: bool
   return `<w:p>${pPr}${runs(text, { bold: extra.bold, size: extra.size }, seed)}</w:p>`;
 }
 
-function table(columns: { header: string; width: number }[], rows: string[][], seed: number): string {
+function table(columns: { header: string; width: number }[], rows: string[][], seed: number, availableWidth = PAGE_WIDTH_TWIPS): string {
   const total = columns.reduce((a, c) => a + c.width, 0);
-  const widths = columns.map((c) => Math.round((c.width / total) * PAGE_WIDTH_TWIPS));
+  const widths = columns.map((c) => Math.round((c.width / total) * availableWidth));
   const grid = widths.map((w) => `<w:gridCol w:w="${w}"/>`).join('');
   const cell = (text: string, i: number, head: boolean) =>
     `<w:tc><w:tcPr><w:tcW w:w="${widths[i]}" w:type="dxa"/>${head ? '<w:shd w:val="clear" w:color="auto" w:fill="E7E6E6"/>' : ''}</w:tcPr>` +
@@ -52,7 +52,7 @@ function table(columns: { header: string; width: number }[], rows: string[][], s
   const headRow = `<w:tr><w:trPr><w:tblHeader/></w:trPr>${columns.map((c, i) => cell(c.header, i, true)).join('')}</w:tr>`;
   const bodyRows = rows.map((r) => `<w:tr>${r.map((v, i) => cell(v, i, false)).join('')}</w:tr>`).join('');
   return (
-    `<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="${PAGE_WIDTH_TWIPS}" w:type="dxa"/>` +
+    `<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="${availableWidth}" w:type="dxa"/>` +
     '<w:tblBorders><w:top w:val="single" w:sz="4" w:color="808080"/><w:left w:val="single" w:sz="4" w:color="808080"/>' +
     '<w:bottom w:val="single" w:sz="4" w:color="808080"/><w:right w:val="single" w:sz="4" w:color="808080"/>' +
     '<w:insideH w:val="single" w:sz="4" w:color="808080"/><w:insideV w:val="single" w:sz="4" w:color="808080"/></w:tblBorders>' +
@@ -74,6 +74,13 @@ function renderBlock(b: Block, i: number): string {
       return b.rows.map(([k, v], j) => para(`${k}：${v}`, undefined, {}, i * 31 + j)).join('');
     case 'table':
       return table(b.columns, b.rows, i);
+    case 'nested-table':
+      return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/></w:tblPr><w:tblGrid><w:gridCol w:w="9026"/></w:tblGrid><w:tr><w:tc>' +
+        '<w:tcPr><w:tcW w:w="9026" w:type="dxa"/></w:tcPr>' + para(b.label) +
+        table([{ header: '欄位', width: 1 }, { header: '內容', width: 3 }], b.rows, i, PAGE_WIDTH_TWIPS - 240) +
+        '<w:p/></w:tc></w:tr></w:tbl>';
+    case 'page-break':
+      return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
     case 'spacer':
       return '<w:p/>';
   }

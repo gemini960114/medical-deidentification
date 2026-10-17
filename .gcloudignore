@@ -1,0 +1,11 @@
+.git
+node_modules
+dist
+.env
+.env.*
+apikey.txt
+.codex
+.agents
+.deploy
+scripts/batch-test-generator/output
+*.log

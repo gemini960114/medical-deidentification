@@ -96,6 +96,12 @@ describe('locateFindings', () => {
 });
 
 describe('classifyFindings', () => {
+  it('requires active full union coverage instead of a partial overlap', () => {
+    const f = [{ category: '姓名', value: '王小明', reason: '' }];
+    expect(classifyFindings('王小明', f, [builtinItem(0, 1)])[0].status).toBe('missed');
+    expect(classifyFindings('王小明', f, [{ ...builtinItem(0, 3), active: false }])[0].status).toBe('missed');
+    expect(classifyFindings('王小明', f, [builtinItem(1, 3), builtinItem(0, 1)])[0].status).toBe('confirmed');
+  });
   it('flags a value as missed when only its first occurrence is covered by the builtin rules', () => {
     const text = 'Patient: John Wang 主治；後文再提 John Wang 追蹤。';
     const first = text.indexOf('John Wang');

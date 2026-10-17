@@ -1,4 +1,4 @@
-name: CI & Deploy to GitHub Pages
+name: CI for Cloud Run
 
 on:
   push:
@@ -9,11 +9,9 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: cloud-run-ci
   cancel-in-progress: false
 
 jobs:
@@ -29,17 +27,8 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
         with:
+          name: cloud-run-web-dist
           path: dist
-
-  deploy:
-    if: github.event_name != 'pull_request'
-    needs: test-and-build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4

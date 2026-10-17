@@ -26,6 +26,7 @@ function render(root: HTMLElement): void {
   root.append(
     el('h2', {}, '還原文件'),
     el('p', { class: 'muted' }, '上傳去識別化後的文件與對應的編碼表 (CSV)，系統會將 [類別:編碼] 標記換回原始內容。'),
+    el('p', { class: 'notice' }, '找不到編碼表？請回到「去識別化」結果頁，按「下載對應編碼表 CSV」；或按「下載（文件＋編碼表）」取得成對檔案。檔名相同的 .deid 文件與 .mapping.csv 必須來自同一次下載。類別標記與圓圈遮蔽無法還原。'),
     el('div', { class: 'restore-inputs' },
       el('div', { class: 'restore-slot' },
         el('h3', {}, '1. 去識別化文件'),
@@ -42,7 +43,7 @@ function render(root: HTMLElement): void {
     root.append(
       el('section', { class: 'samples' },
         el('h3', {}, '用範例體驗還原'),
-        el('p', { class: 'muted small' }, '範例為已去識別化的 4 頁契約書與其編碼表（虛構資料）。「載入體驗」會同時載入兩個檔案並自動還原。'),
+        el('p', { class: 'muted small' }, '範例為全合成病歷的文字版與對應編碼表，示範內建規則遮蔽後的還原；不是完整個資檢出保證。「載入體驗」會同時載入兩份檔案並還原。'),
         el('div', { class: 'sample-actions' },
           button('載入體驗', () => void withBusy('載入範例中…', () => loadSamplePair(root)), 'btn btn-small btn-primary'),
           el('a', { class: 'btn btn-small', href: sampleUrl(RESTORE_SAMPLE.doc.file), download: RESTORE_SAMPLE.doc.name }, `下載 ${RESTORE_SAMPLE.doc.name}`),

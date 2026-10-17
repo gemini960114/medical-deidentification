@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "seed": 20261017,
+  "cases": 3,
+  "generator": "scripts/make-medical-samples.ts",
+  "note": "同病例 Word/PDF、跨頁追蹤、病患總表與成對還原範例；範例遮蔽依內建規則產生，不是 LLM 全面驗收結果。",
+  "files": [
+    "medical-discharge.docx",
+    "medical-discharge.pdf",
+    "medical-followup.pdf",
+    "medical-notes.md",
+    "medical-summary.txt",
+    "medical-roster.xlsx",
+    "medical-summary.deid.txt",
+    "medical-summary.mapping.csv"
+  ]
+}

@@ -13,6 +13,32 @@ const SAMPLE_RULE = {
   sample: '承辦人員工編號 EMP-004521，協辦 EMP-000317；舊制編號 EMP-12345 位數不足，不會命中。',
 };
 
+const MEDICAL_RULES = [
+  { name: '檢體編號', category: '識別碼', regex: 'LAB-\\d{8}', sample: '全合成範例：檢體 LAB-20261017 已收件；LAB-123 不應命中。' },
+  { name: '院內病歷編號', category: '病歷號', regex: 'HOSP-\\d{8}', sample: '全合成範例：病歷 HOSP-00004521，請核對回診紀錄；HOSP-123 不應命中。' },
+  { name: '研究受試者編號', category: '識別碼', regex: 'STUDY-[A-Z]\\d{4}', sample: '全合成範例：受試者 STUDY-A0042 已完成訪視；STUDY-42 不應命中。' },
+] as const;
+
+function medicalRuleExamples(root: HTMLElement): HTMLElement {
+  return el('details', { class: 'rule-templates', open: true },
+    el('summary', {}, '可複製的醫療規則範例'),
+    el('p', { class: 'muted small' }, '以下皆為虛構編號。可複製規則，或按「填入表單」檢視命中結果；按下「新增規則」才會儲存。請依院內實際格式調整。'),
+    el('div', { class: 'rule-template-grid' }, ...MEDICAL_RULES.map((example) =>
+      el('article', { class: 'rule-template' },
+        el('h4', {}, example.name), el('code', {}, example.regex),
+        el('p', {}, example.sample),
+        el('div', { class: 'sample-actions' },
+          button('複製規則', () => { void copyToClipboard(example.regex).then(() => toast('已複製規則', 'success')).catch(() => toast('請直接選取上方規則複製', 'error')); }, 'btn btn-small'),
+          button('填入表單', () => {
+            ui.formOpen = true; render(root);
+            for (const [label, value] of [['規則名稱', example.name], ['規則類別', example.category], ['比對規則', example.regex], ['測試文字', example.sample]]) {
+              const field = root.querySelector<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(`[aria-label="${label}"]`)!;
+              field.value = value; field.dispatchEvent(new Event('input'));
+            }
+            root.querySelector('.form-card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 'btn btn-small btn-primary'))))));
+}
+
 /** Prompt users can paste into an AI assistant to get a rule that fits this tool's RegExp constraints. */
 const AI_PROMPT = [
   '請幫我寫一個 JavaScript 正規表達式，偵測文件中的：（例如：員工編號，EMP- 開頭接 6 位數字）',
@@ -67,7 +93,13 @@ function render(root: HTMLElement, editing: CustomPatternConfig | null = null): 
       }, 'btn btn-primary add-rule'),
     ),
     el('p', { class: 'muted small' }, '內建規則可停用、不可修改；自訂規則可新增、編輯、刪除。點「查看規則」可看完整的比對規則（JavaScript RegExp，flags: gu）、檢核方式與預設保留方式。設定只存在你的瀏覽器。'),
+    el('section', { class: 'rules-help' },
+      el('strong', {}, '新增的規則會自動保存在哪裡？'),
+      el('p', {}, '按下「新增規則」或「儲存變更」後，設定會保存於此瀏覽器、此網站的本機儲存空間；同一網址重新整理或關閉後再開啟仍可使用。'),
+      el('p', {}, '設定不會上傳伺服器，也不會同步至其他裝置或瀏覽器。本機網址與正式網站各自獨立；清除網站資料或結束無痕瀏覽後，規則可能消失。'),
+      el('p', {}, '操作順序：新增規則 → 填入規則與測試文字 → 確認命中 → 儲存。回到「去識別化」頁會重新套用規則；原本的模型辨識結果仍會保留。')),
     ...(form ? [form] : []),
+    medicalRuleExamples(root),
     ...GROUPS.map((g) => renderGroup(root, config, g, patterns.filter((p) => (g.id === 'custom' ? p.source === 'custom' : p.group === g.id)))),
   );
   form?.querySelector<HTMLInputElement>('input')?.focus();
@@ -154,11 +186,11 @@ function renderRule(root: HTMLElement, config: PatternConfig, p: Pattern): HTMLE
 }
 
 function renderForm(root: HTMLElement, config: PatternConfig, editing: CustomPatternConfig | null): HTMLElement {
-  const name = el('input', { class: 'input', placeholder: '例如：員工編號', value: editing?.name ?? '' }) as HTMLInputElement;
-  const category = el('select', { class: 'select' }, ...CATEGORIES.map((c) => el('option', { value: c }, c))) as HTMLSelectElement;
+  const name = el('input', { 'aria-label': '規則名稱', class: 'input', placeholder: '例如：員工編號', value: editing?.name ?? '' }) as HTMLInputElement;
+  const category = el('select', { class: 'select', 'aria-label': '規則類別' }, ...CATEGORIES.map((c) => el('option', { value: c }, c))) as HTMLSelectElement;
   category.value = editing?.category ?? '識別碼';
-  const regex = el('input', { class: 'input mono', placeholder: '例如：EMP-\\d{6}', value: editing?.regex ?? '' }) as HTMLInputElement;
-  const sample = el('textarea', { class: 'input', rows: '3', placeholder: '貼上測試文字，即時檢視命中結果；第一筆命中會作為規則列表的範例' }) as HTMLTextAreaElement;
+  const regex = el('input', { 'aria-label': '比對規則', class: 'input mono', placeholder: '例如：EMP-\\d{6}', value: editing?.regex ?? '' }) as HTMLInputElement;
+  const sample = el('textarea', { 'aria-label': '測試文字', class: 'input', rows: '3', placeholder: '貼上測試文字，即時檢視命中結果；第一筆命中會作為規則列表的範例' }) as HTMLTextAreaElement;
   sample.value = editing?.example ?? '';
   const regexError = el('div', { class: 'field-error' });
   const hits = el('div', { class: 'hits' });

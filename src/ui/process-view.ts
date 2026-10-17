@@ -10,8 +10,11 @@ import { ACCEPT_ATTR, formatLimitations, generateDocument, mappingFileName, outp
 import { button, clear, downloadBlob, dropZone, el, rejectOversized, toast, withBusy } from './components';
 import { releasePictures, renderDocumentPreview, type Decoration } from './preview';
 import { MERGED_MAPPING_NAME, buildArchive } from '../formats/batch';
-import { SAMPLES, samplesSection } from './samples';
+import { GENERAL_SAMPLES, SAMPLES, samplesSection } from './samples';
 import { ocrOverlay } from './ocr-overlay';
+import { getModelSettings, requestModelAudit } from '../core/model-client';
+import { mergeModelFindings, type ModelReview } from '../core/model-merge';
+import type { ModelFinding, ModelSettings } from '../core/model-contract';
 
 export const MAX_FILES = 10;
 
@@ -46,7 +49,22 @@ interface DocState {
   version: number;
   docVer: number;
   csvVer: number;
+  aiFindings?: ModelFinding[];
+  aiReview?: ModelReview[];
+  aiModel?: string;
+  aiVision?: boolean;
 }
+
+let modelSettings: ModelSettings | null = null;
+let modelError = '';
+let selectedModel = '';
+let visionEnabled = false;
+const ACCESS_CODE_STORAGE_KEY = 'deid.serviceAccessCode.v1';
+function loadSavedAccessCode(): string {
+  try { return localStorage.getItem(ACCESS_CODE_STORAGE_KEY) ?? ''; } catch { return ''; }
+}
+let savedAccessToken = loadSavedAccessCode();
+let accessToken = savedAccessToken;
 
 interface State {
   docs: DocState[];
@@ -191,6 +209,11 @@ export function createProcessView(): HTMLElement {
   viewRoot = root;
   state.patternKey = patternKey();
   render(root);
+  void getModelSettings().then((settings) => {
+    modelSettings = settings;
+    selectedModel = settings.defaultModel;
+    render(root);
+  }).catch((error: unknown) => { modelError = error instanceof Error ? error.message : '模型服務無法連線'; render(root); });
   return root;
 }
 
@@ -219,11 +242,26 @@ export function syncPatternChanges(): void {
 // ---------------------------------------------------------------------------------------
 /** Parsing a PDF/Word file (and loading its parser) can take a while: lock the page and show progress meanwhile. */
 async function loadFiles(files: File[], root: HTMLElement): Promise<void> {
+  if (modelSettings?.accessRequired && !accessToken) {
+    toast('請先填寫頁面上方的服務存取碼', 'error');
+    const input = root.querySelector<HTMLInputElement>('#service-access-code');
+    input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    input?.focus({ preventScroll: true });
+    return;
+  }
   const accepted = await rejectOversized(files);
-  if (accepted.length > 0) await withBusy('讀取檔案中…', () => importFiles(accepted, root));
+  if (accepted.length > 0) await withBusy(visionEnabled ? '解析文件、執行文字與 PDF 視覺模型辨識中…' : '解析文件與執行必要文字模型辨識中…', () => importFiles(accepted, root));
 }
 
 async function importFiles(files: File[], root: HTMLElement): Promise<void> {
+  if (!modelSettings) { toast(modelError || '模型服務仍在準備中，請稍後再試', 'error', 8000); return; }
+  if (modelSettings.accessRequired && !accessToken) {
+    toast('請先填寫頁面上方的服務存取碼', 'error');
+    const input = root.querySelector<HTMLInputElement>('#service-access-code');
+    input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    input?.focus({ preventScroll: true });
+    return;
+  }
   const room = MAX_FILES - state.docs.length;
   if (files.length > room) {
     toast(`一次最多處理 ${MAX_FILES} 個檔案（目前已有 ${state.docs.length} 個，只能再加入 ${room} 個）`, 'error', 7000);
@@ -237,6 +275,10 @@ async function importFiles(files: File[], root: HTMLElement): Promise<void> {
       const doc = await parseWithOcr(file);
       const book = bookForNewDoc();
       const d: DocState = { doc, items: detect(doc.text, getEffectivePatterns(), book), book, version: 0, docVer: -1, csvVer: -1 };
+      const ai = await requestModelAudit(doc, selectedModel, visionEnabled, accessToken, file, modelSettings.maxPages);
+      const merged = mergeModelFindings(doc.text, d.items, ai.findings, book);
+      d.items = merged.items; d.aiFindings = ai.findings; d.aiReview = merged.review;
+      d.aiModel = ai.model; d.aiVision = ai.visionCompleted;
       applyOutputMode(d);
       applyDisabledCategories(d);
       state.docs.push(d);
@@ -279,7 +321,12 @@ function rescan(d: DocState, keep: boolean): { auto: number; manual: number } {
   const fresh = detect(d.doc.text, getEffectivePatterns(), d.book)
     .filter((a) => !manual.some((m) => m.active && a.start < m.end && a.end > m.start))
     .map((a) => (keep && old.get(`${a.start},${a.end},${a.category}`)) || a);
-  d.items = [...manual, ...fresh].sort((a, b) => a.start - b.start);
+  const merged = mergeModelFindings(d.doc.text, fresh, d.aiFindings ?? [], d.book);
+  if (keep) for (const item of merged.items) {
+    const previous = old.get(`${item.start},${item.end},${item.category}`);
+    if (previous) item.active = previous.active;
+  }
+  d.items = [...manual, ...merged.items.filter((a) => !manual.some((m) => m.active && a.start < m.end && a.end > m.start))].sort((a, b) => a.start - b.start);
   applyOutputMode(d);
   applyDisabledCategories(d);
   markDirty(d);
@@ -315,27 +362,114 @@ function resetAll(root: HTMLElement): void {
 // ---------------------------------------------------------------------------------------
 function render(root: HTMLElement): void {
   clear(root);
+  root.append(el('section', { class: 'setup-bar', 'aria-label': '服務存取與辨識設定' },
+    modelSettings?.accessRequired ? renderAccessCode() : null, renderModelOptions()));
   if (state.docs.length === 0) {
     root.append(
-      el('h2', {}, '上傳文件'),
-      el('p', { class: 'muted' }, `支援 PDF（含掃描檔，會在瀏覽器內辨識文字）、Word (.docx)、Excel (.xlsx)、TXT、Markdown；可一次選擇多個檔案（最多 ${MAX_FILES} 個、格式可混合），單檔 ${MAX_FILE_BYTES / 1024 / 1024} MB 以內。所有處理皆在瀏覽器內完成，文件不會離開你的電腦。`),
-      dropZone({
-        accept: ACCEPT_ATTR,
-        multiple: true,
-        label: '拖曳一或多個檔案到這裡，或點擊選擇檔案',
-        hint: `.pdf .docx .xlsx .txt .md ・ 最多 ${MAX_FILES} 個`,
-        onFiles: (files) => void loadFiles(files, root),
-      }),
-      renderPasteBox(root),
-      el('details', { class: 'code-options', open: state.sharedCodes || state.imported !== null },
-        el('summary', {}, '進階：跨檔案共用編碼'),
-        renderCodeScope(root),
-      ),
-      samplesSection('沒有檔案？用範例體驗', SAMPLES, (file) => loadFiles([file], root)),
+      el('section', { class: 'workspace-intro' },
+        el('div', {}, el('p', { class: 'eyebrow' }, 'MEDICAL DATA WORKSPACE'),
+          el('h2', {}, '分享醫療資料前，', el('br'), '先把個資照顧好。'),
+          el('p', { class: 'intro-copy' }, '從病歷摘要到照護紀錄，結合規則與文字模型找出敏感資訊，經你覆核後再輸出。也適用於合約、客戶名冊與會議紀錄。')),
+        el('ol', { class: 'workflow-steps', 'aria-label': '處理流程' },
+          ...['匯入醫療文件', '辨識與人工覆核', '下載文件與編碼表'].map((label, i) =>
+            el('li', {}, el('span', {}, `0${i + 1}`), label)))),
+      el('div', { class: 'intake-grid' },
+        el('section', { class: 'intake-card', id: 'file-intake' },
+          el('div', { class: 'section-heading' }, el('span', { class: 'step-number' }, '01'), el('h3', {}, '匯入你的文件')),
+          el('p', { class: 'muted small' }, `PDF、Word、Excel、TXT 或 Markdown；最多 ${MAX_FILES} 份，每份 ${MAX_FILE_BYTES / 1024 / 1024} MB。`),
+          dropZone({ accept: ACCEPT_ATTR, multiple: true,
+            label: '選擇文件，或拖曳到這裡',
+            hint: '病歷摘要 · 照護紀錄 · 病患資料表',
+            onFiles: (files) => void loadFiles(files, root) }),
+          renderPasteBox(root),
+          el('details', { class: 'code-options', open: state.sharedCodes || state.imported !== null },
+            el('summary', {}, '進階：跨檔案共用編碼'), renderCodeScope(root)))),
+      el('p', { class: 'data-disclosure' }, '資料傳送說明：文件文字會經後端送至所選模型；啟用 PDF 視覺時，另傳送頁面影像。請只處理獲授權的資料。'),
+      samplesSection('沒有檔案？先用醫療範例體驗', SAMPLES, (file) => loadFiles([file], root)),
+      samplesSection('不只醫療，也能處理日常文件', GENERAL_SAMPLES, (file) => loadFiles([file], root), undefined, '六類通用情境、六份代表範例，皆為程式產生的虛構資料。「載入辨識」使用目前的模型設定；「下載原檔」只下載範例。'),
     );
     return;
   }
+  const d = current();
+  root.append(el('p', { class: 'notice', 'data-ai-completed': 'true' }, `已完成文字 LLM：${d.aiModel ?? ''}${d.aiVision ? '；已完成 PDF 視覺辨識' : ''}。請確認預覽再下載。`));
+  if (d.aiReview?.length) root.append(el('div', { class: 'notice notice-warn', 'data-ai-review': 'true' },
+    el('strong', {}, `仍有 ${d.aiReview.length} 筆模型發現需要人工核對`),
+    ...d.aiReview.map(({ finding, reason }) => el('p', {}, `${finding.page ? `第 ${finding.page} 頁：` : ''}${finding.category}「${finding.value}」—${reason}`))));
   root.append(renderToolbar(root), renderWorkspace(root));
+}
+
+function renderAccessCode(): HTMLElement {
+  const input = el('input', { id: 'service-access-code', type: 'password', class: 'input', autocomplete: 'off',
+    'aria-label': '服務存取碼', 'aria-describedby': 'access-code-hint', placeholder: '請在這裡輸入服務存取碼' }) as HTMLInputElement;
+  input.value = accessToken;
+  const statusText = () => !accessToken ? '尚未填寫' : accessToken === savedAccessToken ? '已儲存，上傳時驗證' : '已填寫，尚未儲存';
+  const status = el('span', { class: 'access-code-status', 'aria-live': 'polite' }, statusText());
+  input.addEventListener('input', () => {
+    accessToken = input.value;
+    status.textContent = statusText();
+  });
+  const reveal = button('顯示', () => {
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    reveal.textContent = show ? '隱藏' : '顯示';
+    reveal.setAttribute('aria-pressed', String(show));
+  }, 'btn');
+  reveal.setAttribute('aria-label', '顯示或隱藏服務存取碼');
+  reveal.setAttribute('aria-pressed', 'false');
+  const save = button('儲存', () => {
+    const value = input.value.trim();
+    if (!value) { toast('請先輸入服務存取碼', 'error'); input.focus(); return; }
+    try { localStorage.setItem(ACCESS_CODE_STORAGE_KEY, value); }
+    catch { toast('瀏覽器不允許儲存，代碼僅能在目前分頁使用', 'error'); return; }
+    savedAccessToken = accessToken = input.value = value;
+    status.textContent = statusText();
+    toast('存取碼已儲存，重新整理或開啟新的辨識會自動帶入', 'success');
+  }, 'btn btn-primary');
+  save.setAttribute('aria-label', '儲存服務存取碼');
+  const forget = button('清除', () => {
+    try { localStorage.removeItem(ACCESS_CODE_STORAGE_KEY); }
+    catch { toast('無法清除儲存的代碼，請檢查瀏覽器的網站儲存設定', 'error'); return; }
+    savedAccessToken = accessToken = input.value = '';
+    input.type = 'password'; reveal.textContent = '顯示'; reveal.setAttribute('aria-pressed', 'false');
+    status.textContent = statusText(); input.focus();
+    toast('已清除此瀏覽器儲存的服務存取碼', 'success');
+  }, 'btn');
+  forget.setAttribute('aria-label', '清除儲存的服務存取碼');
+  input.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); save.click(); } });
+  return el('section', { class: 'access-code-banner', 'aria-labelledby': 'access-code-title' },
+    el('div', { class: 'access-code-heading' },
+      el('span', { class: 'access-required' }, '必填'),
+      el('label', { id: 'access-code-title', for: 'service-access-code' }, '服務存取碼'),
+      status),
+    el('p', { id: 'access-code-hint' }, '先填管理者提供的代碼，再上傳文件。'),
+    el('div', { class: 'access-code-field' }, input, reveal, save, forget),
+    el('p', { class: 'access-code-footnote' }, '按「儲存」後，同瀏覽器、同網址會自動帶入；共用電腦用完請按「清除」。'));
+}
+
+function renderModelOptions(): HTMLElement {
+  const required = el('input', { type: 'checkbox', checked: true, disabled: true, 'aria-label': '文字 LLM 辨識（必要）' });
+  const select = el('select', { class: 'input', 'aria-label': '辨識模型' }) as HTMLSelectElement;
+  for (const model of modelSettings?.models ?? []) select.append(el('option', { value: model }, model));
+  select.value = selectedModel; select.disabled = state.docs.length > 0 || !modelSettings;
+  select.addEventListener('change', () => {
+    selectedModel = select.value;
+    if (!modelSettings?.visionModels.includes(selectedModel)) { visionEnabled = false; vision.checked = false; }
+    vision.disabled = state.docs.length > 0 || !modelSettings?.visionModels.includes(selectedModel);
+  });
+  const vision = el('input', { type: 'checkbox', 'data-vision-option': 'true' }) as HTMLInputElement;
+  vision.checked = visionEnabled; vision.disabled = state.docs.length > 0 || !modelSettings?.visionModels.includes(selectedModel);
+  vision.addEventListener('change', () => { visionEnabled = vision.checked; });
+  const box = el('section', { class: 'model-options' },
+    el('h3', {}, '辨識設定'),
+    el('div', { class: 'model-controls' },
+      el('label', { class: 'model-select-label' }, '模型', select),
+      el('label', { class: 'check-label' }, required, ' 文字 LLM（必要）'),
+      el('label', { class: 'check-label' }, vision, ' PDF 視覺辨識')),
+    el('details', { class: 'model-help' },
+      el('summary', {}, '視覺辨識適用範圍'),
+      el('p', { class: 'muted small' }, 'PDF 可檢查掃描圖、表格與頁首頁尾。Word、Excel 僅辨識擷取文字，不檢查內嵌圖片；JPG／PNG 尚不支援。灰色選項表示此模型未開放視覺。已載入文件時，請開始新的辨識以更換模型。')));
+  if (!modelSettings) box.append(el('p', { class: modelError ? 'warn' : 'muted', role: 'status' }, modelError || '正在連線模型服務…'));
+  return box;
 }
 
 /**
@@ -393,7 +527,7 @@ function renderCodeScope(root: HTMLElement): HTMLElement {
 }
 
 function renderPasteBox(root: HTMLElement): HTMLElement {
-  const area = el('textarea', { class: 'input paste-area', rows: '6', placeholder: '或直接把文字貼在這裡（例如信件、對話紀錄、報表內容），再按「開始去識別化」' }) as HTMLTextAreaElement;
+  const area = el('textarea', { class: 'input paste-area', rows: '3', 'aria-label': '貼上醫療文件文字', placeholder: '也可以貼上病歷摘要、照護紀錄或轉診文字…' }) as HTMLTextAreaElement;
   const go = () => {
     const text = area.value;
     if (!text.trim()) {
@@ -472,11 +606,13 @@ function renderToolbar(root: HTMLElement): HTMLElement {
         many
           ? button(`打包下載全部（${state.docs.length} 個檔案）`, () => void downloadAll(root), 'btn btn-primary btn-strong')
           : withTip(button(restorable() ? '下載（文件＋編碼表）' : '下載去識別化文件', () => void downloadBoth(d, root), 'btn btn-primary btn-strong'), restorable() ? '編碼表是還原的唯一憑證，請妥善保管' : '不需還原：只下載去識別化文件'),
+        restorable() ? button('下載對應編碼表 CSV', () => downloadCsv(d, root), 'btn mapping-download') : null,
         more,
       ),
     ),
     el('div', { class: 'toolbar-row status-line muted small' },
       el('span', { class: 'status-mode' }, mode.join('・')),
+      el('span', { class: 'mapping-help' }, restorable() ? `編碼表：${mappingFileName(doc.fileName)}；請與本次文件成對保存，還原時兩份都要上傳。` : '目前標記方式無法還原，因此不產生編碼表；需要編碼表請在輸出設定選「編碼」。'),
       limits ? el('span', { class: 'status-info', 'data-tip': limits, tabindex: '0' }, 'ⓘ 格式限制') : null,
       partialCats.length
         ? el('span', { class: 'status-partial notice notice-inline', 'data-tip': `${partialCats.join('、')}：保留的字元會出現在輸出中，並非完全匿名`, tabindex: '0' }, `⚠ 含部分保留（${partialCats.length} 類）`)

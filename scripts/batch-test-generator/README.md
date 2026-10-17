@@ -24,6 +24,7 @@ npm run generate:test-docs -- --count 100
 --seed <整數>        固定亂數種子，預設 20261017
 --format <格式>      mixed（預設）、all、txt、md、docx、pdf
 --output <資料夾>    輸出根目錄，預設 scripts/batch-test-generator/output
+--layout <版面>     basic（預設）或 realistic（多頁、巢狀表格）
 ```
 
 範例：
@@ -42,6 +43,8 @@ npm run generate:test-docs -- --count 500 --format txt --seed 42
 `mixed` 的 `count` 是文件總數；`all` 的 `count` 是病例數，每個病例各產生 TXT、Markdown、DOCX、PDF。
 
 ## 標準答案
+
+`npm run generate:test-docs -- --count 2 --format all --layout realistic` 會加入兩個明確分頁的追蹤紀錄與巢狀聯絡表。Word 包含真正的巢狀 `<w:tbl>`；PDF 以框線繪出內外表格並驗證至少三頁。新增聯絡欄位的重複次數一起寫入 answer-key，不放寬原本的偵測白名單。`npm run test:e2e` 會在本機瀏覽器操作五種格式的上傳、偵測、下載與還原，比對實際下載內容，並檢查瀏覽器只呼叫同源 API、不直連外部模型端點；需要 Chrome／Chromium，可用 `CHROME_PATH` 指定。CI 同樣執行此測試，無須模型金鑰。
 
 `answer-key.json` 的每一筆 finding 包含：
 
