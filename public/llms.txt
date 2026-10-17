@@ -2,12 +2,12 @@
 
 > 免費、開源、純前端的線上文件去識別化工具：上傳 PDF、Word、Excel、TXT、Markdown 或貼上文字，自動偵測姓名、身分證字號、手機、市話、地址、電子郵件、公司名稱、統一編號與自訂識別碼，遮罩預覽、人工覆核後下載去識別化文件與 CSV 編碼表，日後可憑編碼表完整還原（不需還原時也可只輸出類別標記或「○」佔位）。所有處理在瀏覽器內完成，檔案不會上傳到任何伺服器。
 
-- 網址：https://deanlin.net/data-deidentification/
-- 原始碼（MIT 授權）：https://github.com/dean9703111/data-deidentification
-- 作者：Dean Lin（https://deanlin.net/）
+- 網址：https://gemini960114.github.io/medical-deidentification/
+- 原始碼（MIT 授權）：https://github.com/gemini960114/medical-deidentification
+- 原始作者：Dean Lin（https://deanlin.net/）；此醫療強化版本由 gemini960114（https://github.com/gemini960114）維護
 - 語言：繁體中文（台灣）；內建偵測規則以台灣常見格式為主
 - 適用情境：把合約、報價單、客戶清單、客服信件、會議紀錄交給外包廠商、AI 服務（ChatGPT、Claude、Gemini）或研究單位之前先移除個資，事後仍可還原；也適用於紙本掃描檔（申請表、名冊、名片）與公開範例
-- 完整說明（README，Markdown）：https://deanlin.net/data-deidentification/llms-full.txt
+- 完整說明（README，Markdown）：https://gemini960114.github.io/medical-deidentification/llms-full.txt
 
 ## 主要特點
 
@@ -64,14 +64,14 @@ Data De-identification Tool is a free, open-source, browser-only tool for redact
 
 ## 參考連結
 
-- [完整說明（Markdown，供 AI 閱讀）](https://deanlin.net/data-deidentification/llms-full.txt)
+- [完整說明（Markdown，供 AI 閱讀）](https://gemini960114.github.io/medical-deidentification/llms-full.txt)
 
-- [完整操作說明與截圖（README）](https://github.com/dean9703111/data-deidentification#readme)
-- [偵測規則說明](https://github.com/dean9703111/data-deidentification#偵測規則)
-- [輸出格式：標記與編碼表](https://github.com/dean9703111/data-deidentification#輸出格式標記與編碼表)
-- [範例：委外服務契約書 (Word)](https://deanlin.net/data-deidentification/samples/contract.docx)
-- [範例：報價單 (PDF)](https://deanlin.net/data-deidentification/samples/quotation.pdf)
-- [範例：掃描文件 (掃描 PDF，5 頁：信函、手寫表單、名冊、英文 Invoice、名片)](https://deanlin.net/data-deidentification/samples/scanned.pdf)
-- [範例：客戶資料 (Excel)](https://deanlin.net/data-deidentification/samples/customers.xlsx)
-- [範例：客服信件 (TXT)](https://deanlin.net/data-deidentification/samples/support-email.txt)
-- [範例：已去識別化契約書＋編碼表（還原體驗）](https://deanlin.net/data-deidentification/samples/contract.deid.docx)
+- [完整操作說明與截圖（README）](https://github.com/gemini960114/medical-deidentification#readme)
+- [偵測規則說明](https://github.com/gemini960114/medical-deidentification#偵測規則)
+- [輸出格式：標記與編碼表](https://github.com/gemini960114/medical-deidentification#輸出格式標記與編碼表)
+- [範例：委外服務契約書 (Word)](https://gemini960114.github.io/medical-deidentification/samples/contract.docx)
+- [範例：報價單 (PDF)](https://gemini960114.github.io/medical-deidentification/samples/quotation.pdf)
+- [範例：掃描文件 (掃描 PDF，5 頁：信函、手寫表單、名冊、英文 Invoice、名片)](https://gemini960114.github.io/medical-deidentification/samples/scanned.pdf)
+- [範例：客戶資料 (Excel)](https://gemini960114.github.io/medical-deidentification/samples/customers.xlsx)
+- [範例：客服信件 (TXT)](https://gemini960114.github.io/medical-deidentification/samples/support-email.txt)
+- [範例：已去識別化契約書＋編碼表（還原體驗）](https://gemini960114.github.io/medical-deidentification/samples/contract.deid.docx)

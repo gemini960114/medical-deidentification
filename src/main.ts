@@ -70,7 +70,7 @@ function mount(): void {
   }
   const help = el('a', {
     class: 'tab tab-link',
-    href: 'https://github.com/dean9703111/data-deidentification#操作流程',
+    href: 'https://github.com/gemini960114/medical-deidentification#操作流程',
     target: '_blank',
     rel: 'noopener',
     title: '開啟 GitHub 專案頁的操作說明',
@@ -82,7 +82,7 @@ function mount(): void {
     ['Facebook', 'https://www.facebook.com/deanlinbao', ICONS.facebook],
     ['Threads', 'https://www.threads.com/@deanlin5288', ICONS.threads],
     ['YouTube', 'https://www.youtube.com/@dlcorner', ICONS.youtube],
-    ['GitHub', 'https://github.com/dean9703111', ICONS.github],
+    ['GitHub', 'https://github.com/gemini960114', ICONS.github],
   ];
   app.append(
     el('header', { class: 'header' },
@@ -95,7 +95,7 @@ function mount(): void {
         el('div', {},
           el('strong', {}, '文件去識別化工具'),
           el('span', { class: 'muted' }, '　開源專案（MIT）・'),
-          el('a', { href: 'https://github.com/dean9703111/data-deidentification', target: '_blank', rel: 'noopener' }, '原始碼'),
+          el('a', { href: 'https://github.com/gemini960114/medical-deidentification', target: '_blank', rel: 'noopener' }, '原始碼'),
           siteInfo ? el('span', { class: 'muted' }, '・') : null,
           siteInfo ? el('button', { class: 'link-btn', type: 'button', onClick: () => infoDialog.showModal() }, '常見問題') : null,
         ),

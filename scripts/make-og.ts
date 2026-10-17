@@ -51,8 +51,8 @@ const html = `<!doctype html>
     <div class="legend"><span class="n">姓名</span><span class="i">身分證</span><span class="p">手機</span><span class="a">地址</span><span class="e">Email</span><span class="c">公司</span><span class="t">統編</span></div>
   </div>
 </div>
-<div class="url">deanlin.net/data-deidentification</div>
-<div class="stamp">by <b>Dean Lin</b> · MIT</div>
+<div class="url">gemini960114.github.io/medical-deidentification</div>
+<div class="stamp">原作 <b>Dean Lin</b> · MIT</div>
 </body></html>`;
 
 mkdirSync('public', { recursive: true });

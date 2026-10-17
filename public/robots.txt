@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://deanlin.net/data-deidentification/sitemap.xml
+Sitemap: https://gemini960114.github.io/medical-deidentification/sitemap.xml

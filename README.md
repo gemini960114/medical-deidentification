@@ -1,14 +1,14 @@
 # 文件去識別化工具
 
-[![CI & Deploy](https://github.com/dean9703111/data-deidentification/actions/workflows/deploy.yml/badge.svg)](https://github.com/dean9703111/data-deidentification/actions/workflows/deploy.yml)
-[![Live Demo](https://img.shields.io/badge/demo-GitHub%20Pages-2f6fed?logo=github)](https://deanlin.net/data-deidentification/)
+[![CI & Deploy](https://github.com/gemini960114/medical-deidentification/actions/workflows/deploy.yml/badge.svg)](https://github.com/gemini960114/medical-deidentification/actions/workflows/deploy.yml)
+[![Live Demo](https://img.shields.io/badge/demo-GitHub%20Pages-2f6fed?logo=github)](https://gemini960114.github.io/medical-deidentification/)
 [![Tests](https://img.shields.io/badge/tests-431%20passing-2e9e5b)](#測試與品質)
 ![Client-side only](https://img.shields.io/badge/privacy-100%25%20client--side-8e44ad)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
 **在瀏覽器裡完成、資料不出電腦的文件去識別化工具。** 上傳 PDF（含掃描檔，於瀏覽器內辨識文字）/ Word / Excel / TXT / Markdown 或直接貼上文字，自動偵測中文姓名、身分證字號、手機、市話、地址、電子郵件、公司名稱、統一編號與自訂識別碼，以及病歷號（MRN／Chart No.）、醫療日期、英文姓名等醫療文件欄位和國際電話、信用卡、美國 SSN、IBAN、IP、出生日期等國際格式；以符合原始格式的方式預覽、人工覆核後，下載去識別化文件與 CSV 編碼對照表，日後可憑編碼表完整還原；不需要還原時，也可以只輸出 `[姓名]` 這類類別標記或「○」佔位。
 
-🔗 **線上使用：<https://deanlin.net/data-deidentification/>**
+🔗 **線上使用：<https://gemini960114.github.io/medical-deidentification/>**
 
 <p align="center">
   <img src="docs/screenshots/02-preview.png" alt="去識別化預覽：Word 合約書以頁面方式呈現，敏感資訊以遮罩顯示" width="880">
@@ -89,12 +89,12 @@
 
 ## 快速開始
 
-**直接使用**：開啟 <https://deanlin.net/data-deidentification/>，拖入檔案即可；沒有檔案的話，頁面下方有「用範例體驗」，一鍵載入 Word／PDF／掃描 PDF／Excel／Markdown 範例（見[範例檔下載與體驗](#範例檔下載與體驗)）。
+**直接使用**：開啟 <https://gemini960114.github.io/medical-deidentification/>，拖入檔案即可；沒有檔案的話，頁面下方有「用範例體驗」，一鍵載入 Word／PDF／掃描 PDF／Excel／Markdown 範例（見[範例檔下載與體驗](#範例檔下載與體驗)）。
 
 **本機執行**：
 
 ```bash
-git clone https://github.com/dean9703111/data-deidentification.git
+git clone https://github.com/gemini960114/medical-deidentification.git
 cd data-deidentification
 npm install
 npm run dev        # http://localhost:5173
@@ -330,15 +330,15 @@ PDF 依原始座標逐頁排版（下圖 1 頁碼、2 頁面），表格與版�
 
 | 範例 | 格式 | 內容 | 下載 |
 |------|------|------|------|
-| 委外服務契約書 | Word | 4 頁契約：立契約書人、十二條條款、附件表格、簽署欄（含頁首頁尾） | [contract.docx](https://deanlin.net/data-deidentification/samples/contract.docx) |
-| 委外服務契約書 | PDF | 同一份契約的 PDF 版本 | [contract.pdf](https://deanlin.net/data-deidentification/samples/contract.pdf) |
-| 報價單 | Word | 3 頁報價單：客戶資料、20 項明細（跨頁表格）、聯絡窗口、簽回欄 | [quotation.docx](https://deanlin.net/data-deidentification/samples/quotation.docx) |
-| 報價單 | PDF | 同一份報價單的 PDF 版本 | [quotation.pdf](https://deanlin.net/data-deidentification/samples/quotation.pdf) |
-| 客戶資料 | Excel | 60 筆客戶＋聯絡紀錄 30 筆＋業務窗口，三個工作表 | [customers.xlsx](https://deanlin.net/data-deidentification/samples/customers.xlsx) |
-| 客服信件 | TXT | 客服回覆信與引用的原始來信 | [support-email.txt](https://deanlin.net/data-deidentification/samples/support-email.txt) |
-| 專案會議紀錄 | Markdown | 出席者、決議表格、待辦清單 | [meeting-notes.md](https://deanlin.net/data-deidentification/samples/meeting-notes.md) |
-| 掃描文件 | 掃描 PDF | 5 頁純影像（需辨識）：中文信函（含手寫批註與機房照片）、藍筆手寫的會員申請表、橫式名冊表格、英文 Invoice（品項金額表、產品照片）、中英雙語名片；模擬掃描的灰階／彩色、輕微傾斜與紙張底色 | [scanned.pdf](https://deanlin.net/data-deidentification/samples/scanned.pdf) |
-| 還原體驗 | Word + CSV | 已去識別化的契約書與其編碼表（在「還原」頁籤載入） | [contract.deid.docx](https://deanlin.net/data-deidentification/samples/contract.deid.docx)、[contract.mapping.csv](https://deanlin.net/data-deidentification/samples/contract.mapping.csv) |
+| 委外服務契約書 | Word | 4 頁契約：立契約書人、十二條條款、附件表格、簽署欄（含頁首頁尾） | [contract.docx](https://gemini960114.github.io/medical-deidentification/samples/contract.docx) |
+| 委外服務契約書 | PDF | 同一份契約的 PDF 版本 | [contract.pdf](https://gemini960114.github.io/medical-deidentification/samples/contract.pdf) |
+| 報價單 | Word | 3 頁報價單：客戶資料、20 項明細（跨頁表格）、聯絡窗口、簽回欄 | [quotation.docx](https://gemini960114.github.io/medical-deidentification/samples/quotation.docx) |
+| 報價單 | PDF | 同一份報價單的 PDF 版本 | [quotation.pdf](https://gemini960114.github.io/medical-deidentification/samples/quotation.pdf) |
+| 客戶資料 | Excel | 60 筆客戶＋聯絡紀錄 30 筆＋業務窗口，三個工作表 | [customers.xlsx](https://gemini960114.github.io/medical-deidentification/samples/customers.xlsx) |
+| 客服信件 | TXT | 客服回覆信與引用的原始來信 | [support-email.txt](https://gemini960114.github.io/medical-deidentification/samples/support-email.txt) |
+| 專案會議紀錄 | Markdown | 出席者、決議表格、待辦清單 | [meeting-notes.md](https://gemini960114.github.io/medical-deidentification/samples/meeting-notes.md) |
+| 掃描文件 | 掃描 PDF | 5 頁純影像（需辨識）：中文信函（含手寫批註與機房照片）、藍筆手寫的會員申請表、橫式名冊表格、英文 Invoice（品項金額表、產品照片）、中英雙語名片；模擬掃描的灰階／彩色、輕微傾斜與紙張底色 | [scanned.pdf](https://gemini960114.github.io/medical-deidentification/samples/scanned.pdf) |
+| 還原體驗 | Word + CSV | 已去識別化的契約書與其編碼表（在「還原」頁籤載入） | [contract.deid.docx](https://gemini960114.github.io/medical-deidentification/samples/contract.deid.docx)、[contract.mapping.csv](https://gemini960114.github.io/medical-deidentification/samples/contract.mapping.csv) |
 
 更多情境（人工調整、錯誤 CSV、自訂規則、格式邊界）的範例在 `examples/`，說明見 [examples/README.md](examples/README.md)；`npm run examples` 可重新產生全部範例。
 
@@ -435,7 +435,7 @@ SEO／AEO／GEO：`index.html` 內含 description、canonical、Open Graph／Twi
 
 ## 關於作者
 
-Dean Lin — 歡迎追蹤與交流：
+**原始作者**：Dean Lin — 歡迎追蹤與交流：
 
 | 平台 | 連結 |
 |------|------|
@@ -444,5 +444,7 @@ Dean Lin — 歡迎追蹤與交流：
 | Threads | <https://www.threads.com/@deanlin5288> |
 | YouTube | <https://www.youtube.com/@dlcorner> |
 | GitHub | <https://github.com/dean9703111> |
+
+**醫療強化版本維護**：[gemini960114](https://github.com/gemini960114) — 本版本在原始專案基礎上加入醫療欄位偵測規則（病歷號、就醫日期、英文姓名）、掃描件 OCR 強化、全合成語料自動驗收與驗收端 AI 稽核 CLI。
 
 如果這個工具對你有幫助，歡迎給個 ⭐，或在社群上分享使用心得。

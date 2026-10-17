@@ -1,6 +1,6 @@
 # 範例檔說明
 
-各情境的示範檔案，可搭配[首頁的「用範例體驗」](https://deanlin.net/data-deidentification/)直接載入；`npm run examples` 可重新產生全部範例（產生掃描檔需本機 Chrome）。
+各情境的示範檔案，可搭配[首頁的「用範例體驗」](https://gemini960114.github.io/medical-deidentification/)直接載入；`npm run examples` 可重新產生全部範例（產生掃描檔需本機 Chrome）。
 
 - **01-核心流程**：真實案例——委外服務契約書與報價單（Word＋PDF 各 3–4 頁）、60 筆客戶資料 Excel、客服信件、專案會議紀錄，以及 5 頁模擬掃描（無文字層，會觸發瀏覽器內 OCR）的掃描文件 PDF。
 - **02-人工調整**：含誤判（「高鐵站」被姓名規則命中）、漏抓（罕見姓氏、無標籤的案號）與自動命中的病歷號，示範取消誤判、手動圈選新增。
