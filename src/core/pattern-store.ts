@@ -95,7 +95,7 @@ export function upsertCustom(config: PatternConfig, custom: CustomPatternConfig)
 }
 
 export function removeCustom(config: PatternConfig, id: string): PatternConfig {
-  const retention = { ...(config.retention ?? {}) };
+  const retention = { ...config.retention };
   delete retention[id];
   return { ...config, customPatterns: config.customPatterns.filter((c) => c.id !== id), retention };
 }
@@ -108,7 +108,7 @@ export function setCategoryRetention(config: PatternConfig, category: Category, 
 }
 
 export function setRetention(config: PatternConfig, id: string, r: Retention): PatternConfig {
-  const retention = { ...(config.retention ?? {}) };
+  const retention = { ...config.retention };
   if (r.mode === 'none') delete retention[id];
   else retention[id] = r;
   return { ...config, retention };

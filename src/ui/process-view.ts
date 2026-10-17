@@ -357,19 +357,22 @@ function renderCodeScope(root: HTMLElement): HTMLElement {
     changed(shared.checked ? '已開啟整批共用編碼' : '已關閉整批共用編碼');
   });
   const input = el('input', { type: 'file', accept: '.csv,text/csv', hidden: true }) as HTMLInputElement;
-  input.addEventListener('change', async () => {
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
-    const { entries, errors } = parseMapping(await file.text());
-    if (errors.length) {
-      toast(`編碼表格式錯誤，未匯入：${errors.slice(0, 3).join('；')}`, 'error', 8000);
-      return;
-    }
-    const warnings = new CodeBook().seed(entries);
-    state.imported = { fileName: file.name, entries };
-    for (const w of warnings.slice(0, 3)) toast(w, 'error', 8000);
-    changed(`已匯入 ${entries.length} 筆編碼，相同的值會沿用原編碼`);
+  // void 標明「刻意不等待」；catch 讀檔失敗不會變成未處理的 rejection（no-misused-promises）。
+  input.addEventListener('change', () => {
+    void (async () => {
+      const file = input.files?.[0];
+      input.value = '';
+      if (!file) return;
+      const { entries, errors } = parseMapping(await file.text());
+      if (errors.length) {
+        toast(`編碼表格式錯誤，未匯入：${errors.slice(0, 3).join('；')}`, 'error', 8000);
+        return;
+      }
+      const warnings = new CodeBook().seed(entries);
+      state.imported = { fileName: file.name, entries };
+      for (const w of warnings.slice(0, 3)) toast(w, 'error', 8000);
+      changed(`已匯入 ${entries.length} 筆編碼，相同的值會沿用原編碼`);
+    })().catch((e) => toast(`讀取編碼表失敗：${e instanceof Error ? e.message : String(e)}`, 'error', 8000));
   });
   return el(
     'div',

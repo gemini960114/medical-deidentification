@@ -9,11 +9,13 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "oxlint --type-aware --deny-warnings",
     "fixtures": "tsx scripts/make-fixtures.ts",
     "examples": "tsx scripts/make-examples.ts",
     "screenshots": "tsx scripts/make-screenshots.ts",
     "eval:ocr": "tsx scripts/eval-ocr.ts",
-    "og": "tsx scripts/make-og.ts"
+    "og": "tsx scripts/make-og.ts",
+    "scan-pii": "tsx scripts/scan-pii.ts"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
@@ -23,11 +25,15 @@
     "libphonenumber-js": "^1.13.15",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "tesseract.js-core": "^7.0.0"
   },
   "devDependencies": {
+    "@types/jsdom": "^30.0.0",
     "@types/node": "^26.4.1",
     "jsdom": "^29.1.1",
+    "oxlint": "^1.88.0",
+    "oxlint-tsgolint": "^7.0.2004",
     "puppeteer-core": "^25.9.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
@@ -36,6 +42,9 @@
   },
   "license": "MIT",
   "author": "Dean Lin",
+  "engines": {
+    "node": ">=20"
+  },
   "homepage": "https://deanlin.net/data-deidentification/",
   "repository": {
     "type": "git",

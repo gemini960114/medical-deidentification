@@ -2,7 +2,7 @@ import type { MappingEntry } from './types';
 
 export const CODE_LENGTH = 6;
 
-export const MARKER_REGEX = /\[([^\[\]:]{1,10}):([0-9a-f]{6})\]/g;
+export const MARKER_REGEX = /\[([^[\]:]{1,10}):([0-9a-f]{6})\]/g;
 
 export function generateCode(used: Set<string>): string {
   const bytes = new Uint8Array(CODE_LENGTH / 2);

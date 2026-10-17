@@ -10,11 +10,13 @@ function fileOfSize(name: string, size: number): File {
 }
 
 beforeAll(() => {
-  // jsdom has <dialog> but not its modal API.
+  // jsdom 有 <dialog> 但沒有 modal API；??= 只做存在性檢查，不會產生未綁定的呼叫。
   const proto = HTMLDialogElement.prototype;
+  // oxlint-disable-next-line typescript/unbound-method
   proto.showModal ??= function (this: HTMLDialogElement) {
     this.setAttribute('open', '');
   };
+  // oxlint-disable-next-line typescript/unbound-method
   proto.close ??= function (this: HTMLDialogElement) {
     this.removeAttribute('open');
     this.dispatchEvent(new Event('close'));

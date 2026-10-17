@@ -279,7 +279,7 @@ export function findFills(img: Raster, rules: PixelRule[] = []): PixelFill[] {
   const sheet = paperColour(img, paper);
   const cols = Math.ceil(w / FILL_CELL);
   const rows = Math.ceil(h / FILL_CELL);
-  const colour: (Rgb | null)[] = new Array(cols * rows).fill(null);
+  const colour: (Rgb | null)[] = Array.from({ length: cols * rows }, () => null);
   // Cells mostly covered by text (bold headings) show too little background to judge: a fill may
   // run through them, but they do not decide its colour.
   const wordy = new Uint8Array(cols * rows);

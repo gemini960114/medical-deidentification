@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "eslint/no-irregular-whitespace": [
+      "error",
+      { "skipStrings": true, "skipComments": true, "skipTemplates": true, "skipRegExps": true }
+    ]
+  }
+}
