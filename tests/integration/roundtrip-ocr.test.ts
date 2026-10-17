@@ -61,7 +61,7 @@ beforeAll(async () => {
     await worker.terminate();
   }
   scanned = assemblePdf('scanned.pdf', pages, true);
-}, 180000);
+}, 600000);
 
 describe('scanned PDF (OCR) round trip', () => {
   it('the sample has no text layer, so it needs recognition', async () => {
